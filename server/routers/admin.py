@@ -16,6 +16,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse, HTMLResponse
 from ..db import get_pool
+from ..impact import impact_for
 from ..models import AdminUserRow
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -225,7 +226,8 @@ async def usage_stats(
               COALESCE(ua.ecg_total::float / ua.usage_days, 0)    AS avg_ecg_day,
               -- What they told onboarding they're optimising for.
               COALESCE(pr.goals, '{}')                            AS goals,
-              COALESCE(pr.practices, '{}')                        AS practices
+              COALESCE(pr.practices, '{}')                        AS practices,
+              pr.email                                            AS email
             FROM users u
             LEFT JOIN profiles pr   ON pr.user_id = u.id
             LEFT JOIN in_range ir   ON ir.user_id = u.id
@@ -275,6 +277,7 @@ async def usage_stats(
                 "id":            str(r["id"]),
                 "device_id":     r["device_id"],
                 "display_name":  r["display_name"],
+                "email":         r["email"],
                 "first_seen":    r["first_seen"].isoformat() if r["first_seen"] else None,
                 "last_seen":     r["last_seen"].isoformat() if r["last_seen"] else None,
                 "last_signal":   r["last_signal"].isoformat() if r["last_signal"] else None,
@@ -298,13 +301,15 @@ async def usage_stats(
 
 def _activity_row(r) -> dict:
     """asyncpg activities Record → JSON-safe dict (all columns, incl. the full
-    before/during/after metric grid)."""
+    before/during/after metric grid), plus `impact`: the score the app shows
+    for this session, rebuilt from those same averages — see server/impact.py."""
     d = dict(r)
     d["id"] = str(d["id"])
     d.pop("user_id", None)
     for k in ("started_at", "ended_at", "created_at"):
         if d.get(k) is not None:
             d[k] = d[k].isoformat()
+    d["impact"] = impact_for(d)
     return d
 
 

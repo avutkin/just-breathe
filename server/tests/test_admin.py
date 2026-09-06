@@ -192,6 +192,16 @@ async def test_activity_detail():
     assert d["impact_score"] == 62
     assert d["during_rsa"] == 30.0 and d["before_rsa"] == 20.0
 
+    # The Impact tile prints what the app prints: a class, a score built from
+    # the stored averages (None here — one metric is too few), and a
+    # benefit-signed % per metric for the cards.
+    imp = d["impact"]
+    assert imp["class"] == "restorative"
+    assert imp["score"] is None and imp["counted"] == 1 and imp["total"] == 9
+    assert round(imp["metrics"]["rsa"]["during_pct"]) == 50
+    assert round(imp["metrics"]["rsa"]["after_pct"]) == 30
+    assert imp["metrics"]["rsa"]["tag"] == "up" and imp["metrics"]["rsa"]["scored"] is True
+
     # A missing activity is a clean 404.
     async with _client() as client:
         nf = await client.get("/admin/activities/00000000-0000-0000-0000-0000000000fe")
@@ -327,9 +337,11 @@ async def test_stats_carries_onboarding_goals_and_practices():
     row = next(u for u in data["users"] if u["device_id"] == with_profile)
     assert row["goals"] == goals
     assert row["practices"] == practices
+    assert row["email"] == "someone@example.com"
 
     bare = next(u for u in data["users"] if u["device_id"] == without)
     assert bare["goals"] == [] and bare["practices"] == []
+    assert bare["email"] is None
 
 
 @pytest.mark.asyncio
