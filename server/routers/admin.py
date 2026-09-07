@@ -731,11 +731,17 @@ async def activity_detail(activity_id: str):
 
 
 @router.get("/activities/{activity_id}/series")
-async def activity_series(activity_id: str):
+async def activity_series(activity_id: str, buckets: int = 120):
     """The metric line across one activity's window — the same shape the app's
     ActivityWindowChart draws: five minutes before the start through ten after
     the end, bucketed to ~120 points so an hour-long sit and a five-minute one
-    both read the same."""
+    both read the same. A night asks for more (`buckets`, capped at 720) so a
+    minute of movement is not averaged into a four-minute bucket.
+
+    Movement travels twice: `motion` is the bucket's mean, `motion_max` its
+    loudest tick — the strip the app draws keeps the loudest tick per slot,
+    because thinning by average drops the very movements it exists to show."""
+    buckets = max(30, min(720, buckets))
     pool = get_pool()
     async with pool.acquire() as conn:
         act = await conn.fetchrow(
@@ -749,12 +755,14 @@ async def activity_series(activity_id: str):
         window_start = started - timedelta(minutes=5)
         window_end = ended + timedelta(minutes=10)
         span = (window_end - window_start).total_seconds()
-        bucket = timedelta(seconds=max(span / 120, 1))
+        bucket = timedelta(seconds=max(span / buckets, 1))
 
-        avg_cols = ", ".join(f"AVG({c}) AS {c}" for c in _METRIC_COLS)
+        cols = _METRIC_COLS + ("motion",)
+        avg_cols = ", ".join(f"AVG({c}) AS {c}" for c in cols)
         rows = await conn.fetch(
             f"""
-            SELECT date_bin($2::interval, ts, $3) AS bucket, {avg_cols}
+            SELECT date_bin($2::interval, ts, $3) AS bucket, {avg_cols},
+                   MAX(motion) AS motion_max
             FROM metric_samples
             WHERE user_id = $1 AND ts >= $3 AND ts <= $4
             GROUP BY bucket
@@ -772,7 +780,8 @@ async def activity_series(activity_id: str):
         "window_start": window_start.isoformat(),
         "window_end":   window_end.isoformat(),
         "samples": [
-            {"ts": r["bucket"].isoformat(), **{c: _f(r[c]) for c in _METRIC_COLS}}
+            {"ts": r["bucket"].isoformat(), **{c: _f(r[c]) for c in cols},
+             "motion_max": _f(r["motion_max"])}
             for r in rows
         ],
     }

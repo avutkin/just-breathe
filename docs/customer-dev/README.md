@@ -26,7 +26,18 @@ Everything we learn from the people using Wythin, organized by person, plus the 
 - Drop audio or video into `~/Code/Wythin/CustDev/` (outside git; it holds voice notes and Zoom recordings). Then run `tools/customer-dev-transcribe.sh <file>` and it writes the transcript to `interviews/<date>-<slug>.md` for Claude to summarise. Transcription runs locally with whisper-large-v3-turbo on this Mac; nothing is uploaded.
 - Zoom: set the meeting to record to the cloud with audio transcript on, or record locally (files land in `~/Documents/Zoom/`). Either way, copy the recording or the `.vtt` transcript into `CustDev/` and it gets filed the same way. There is no live Zoom connector in this session yet.
 
-## How interviews get filed
+## Zoom sweeps
+
+Zoom is connected through the claude.ai connector (2026-09-06). At the start of a session, ask for a sweep ("check Zoom for interviews since <date>"). For every meeting with a transcript or recording in the window, Claude reads the transcript and classifies it by content, not by title:
+
+| Classification | Test | Where it goes |
+|---|---|---|
+| **Wythin** | The conversation is about the app, the Polar strap, HRV, breathwork, sleep, recovery, a user's data, or the product's direction; or a participant is on the [roster](roster.md) and talks about their use | This folder: `interviews/`, the person's file, `feedback-log.md`, board cards |
+| **Circles** | The conversation is about the Circles app, its decks and questions, the portal, its testers, or its strategy | `~/Code/circles/docs/customer-dev/`, same structure |
+| **Other** | Anything else, or mixed calls where neither product is the point | Listed in [zoom-triage.md](zoom-triage.md) with date, participants, a one-line summary, and Claude's guess. Alex classifies; nothing else is written until he does |
+
+A call that covers both products is filed in both, with only the relevant part summarised in each. Once a meeting is filed or triaged, its Zoom meeting id is recorded in `zoom-triage.md` so the next sweep skips it.
+
 
 1. Transcript lands in `interviews/YYYY-MM-DD-<first-last>.md` with the raw text at the bottom and a summary at the top: who, what they use the app for, what they value, what frustrates them, quotes worth keeping, what we promised.
 2. The person's file gets a one-line entry under Interviews linking the transcript.
