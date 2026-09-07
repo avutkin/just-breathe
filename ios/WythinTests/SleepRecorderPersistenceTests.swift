@@ -243,6 +243,35 @@ final class SleepRecorderPersistenceTests: XCTestCase {
                           "this is the stale row, not a rebuilt one")
     }
 
+    // MARK: - The pass says how many nights it wrote
+
+    func testAPassReportsTheNightsItWroteSoTheUploadCanFollow() {
+        // The launch-time upload runs alongside the first record pass and is
+        // usually gone before the rebuilt nights exist; the count is what
+        // lets the app flush again only when there is something new to send.
+        let writer = ModelContext(container)
+        seedNight(writer, day: 24)
+        XCTAssertEqual(SleepRecorder.recordIfDue(context: writer, now: at(25, 8)), 1)
+        XCTAssertEqual(SleepRecorder.recordIfDue(context: writer, now: at(25, 9)), 0,
+                       "nothing new on the second pass")
+    }
+
+    func testTheBackgroundPassCallsBackOnlyWhenItWroteSomething() {
+        let writer = ModelContext(container)
+        seedNight(writer, day: 26)
+        try! writer.save()
+        let wrote = expectation(description: "recorded")
+        SleepRecorder.recordInBackground(container: container, now: at(27, 8)) { count in
+            XCTAssertEqual(count, 1)
+            wrote.fulfill()
+        }
+        wait(for: [wrote], timeout: 10)
+        // Idempotent: a second pass has nothing to say.
+        let quiet = expectation(description: "no callback"); quiet.isInverted = true
+        SleepRecorder.recordInBackground(container: container, now: at(27, 9)) { _ in quiet.fulfill() }
+        wait(for: [quiet], timeout: 2)
+    }
+
     // MARK: - The rest of the night is stored with it
 
     func testARecordedNightCarriesItsDetailAndReopensTheUpload() {

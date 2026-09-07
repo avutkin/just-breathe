@@ -198,7 +198,24 @@ final class AppEnvironment {
         // times a minute on the main thread. That is the lag.
         guard now.timeIntervalSince(lastSleepCheckAt) >= sleepCheckInterval else { return }
         lastSleepCheckAt = now
-        SleepRecorder.recordInBackground(container: modelContainer, now: now)
+        recordSleepInBackground(now: now)
+    }
+
+    /// The sleep pass, followed by an activity upload when it wrote anything.
+    ///
+    /// The upload at launch and the first record pass start together, and the
+    /// upload is usually done before the rebuilt nights exist — after an
+    /// algorithm bump every night is rewritten under a new id, the recorder
+    /// rewinds the upload mark for them, and then nothing sent them until the
+    /// next cold start. This is the flush that follows the rewrite.
+    func recordSleepInBackground(now: Date = .now) {
+        let container = modelContainer, client = sync.client, userID = userID
+        SleepRecorder.recordInBackground(container: container, now: now) { _ in
+            Task { @MainActor in
+                await ActivityUploader(client: client, userID: userID)
+                    .flushPending(context: container.mainContext)
+            }
+        }
     }
 
     private func detectAnchorIfDue(now: Date) {

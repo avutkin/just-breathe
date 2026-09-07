@@ -18,12 +18,21 @@ enum SleepRecorder {
     /// background `ModelContext` is created on the calling thread and used only
     /// there, which is the supported pattern; the main context picks the rows
     /// up on its next fetch.
-    static func recordInBackground(container: ModelContainer, now: Date = .now) {
+    ///
+    /// `onRecorded` fires with the number of nights written, and only when
+    /// that is more than zero. The activity upload runs once at launch, in
+    /// parallel with this pass, and is usually finished before the rebuilt
+    /// nights exist — so without a second flush a rebuilt night sat on the
+    /// phone until the next cold start. The caller decides what to do with the
+    /// news; the recorder knows nothing about the network.
+    static func recordInBackground(container: ModelContainer, now: Date = .now,
+                                   onRecorded: (@Sendable (Int) -> Void)? = nil) {
         guard claimRun() else { return }
         Task.detached(priority: .utility) {
             defer { releaseRun() }
             let context = ModelContext(container)
-            recordIfDue(context: context, now: now)
+            let written = recordIfDue(context: context, now: now)
+            if written > 0 { onRecorded?(written) }
         }
     }
 
@@ -48,7 +57,9 @@ enum SleepRecorder {
         runLock.unlock()
     }
 
-    static func recordIfDue(context: ModelContext, now: Date = .now) {
+    /// Returns how many nights this pass wrote.
+    @discardableResult
+    static func recordIfDue(context: ModelContext, now: Date = .now) -> Int {
         // Everything the sessionizer needs, and nothing older. The lookback is
         // generous enough to catch a night the app was not running for.
         // Purge first, and independently of whether there are samples.
@@ -66,7 +77,7 @@ enum SleepRecorder {
         do { existing = try context.fetch(FetchDescriptor<ActivityLog>()) }
         catch {
             print("❌ SleepRecorder: activity fetch — \(error)")
-            return
+            return 0
         }
         // A night written by an older pipeline is deleted so it can be rebuilt.
         // Leaving it would show numbers from an algorithm that no longer exists,
@@ -108,7 +119,7 @@ enum SleepRecorder {
         )
         desc.fetchLimit = Int(SleepThresholds.lookbackSec / ActivityLog.minTickIntervalSec) + 1_000
 
-        guard let samples = try? context.fetch(desc), !samples.isEmpty else { return }
+        guard let samples = try? context.fetch(desc), !samples.isEmpty else { return 0 }
         let points = samples.map(MetricsHistoryPoint.init(from:))
         // `sleepLogs` is a snapshot taken before both purges, so anything just
         // deleted is still in it. Left in, its date stays in `recordedDays`,
@@ -149,6 +160,7 @@ enum SleepRecorder {
                                   existing: current + written, context: context))
         }
         commit(context)
+        return written.count
     }
 
     // MARK: - Naps
