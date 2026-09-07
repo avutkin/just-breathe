@@ -133,7 +133,7 @@ final class CloudRestoreService {
                 meanBPM: s.mean_bpm, rmssd: s.rmssd, sdnn: s.sdnn, pnn50: s.pnn50,
                 lfHF: s.lf_hf, rsaMs: s.rsa_ms, coherence: s.coherence, cbi: s.cbi,
                 breathBPM: s.breath_bpm, dfa1: s.dfa1, rcmse: s.rcmse, pip: s.pip,
-                dc: s.dc, vti: s.vti))
+                dc: s.dc, vti: s.vti, motion: s.motion))
             inserted += 1
         }
         return inserted

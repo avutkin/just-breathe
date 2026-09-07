@@ -259,6 +259,11 @@ struct MetricSamplePayload: Codable {
     let ts: String
     let mean_bpm, rmssd, sdnn, pnn50, lf_hf, rsa_ms: Float?
     let coherence, cbi, breath_bpm, dfa1, rcmse, pip, dc, vti: Float?
+    /// Stillness, in mg. Sent because the sleep pipeline's every gate is
+    /// relative to it and it was the one channel that never left the device —
+    /// so a night that scored wrong could only be examined with the phone in
+    /// hand, and the tools in tools/ could not reproduce what the device did.
+    let motion: Float?
 }
 struct MetricsUploadPayload: Codable { let samples: [MetricSamplePayload] }
 
@@ -268,6 +273,8 @@ struct MetricExportSample: Codable {
     let ts: String
     let mean_bpm, rmssd, sdnn, pnn50, lf_hf, rsa_ms: Float?
     let coherence, cbi, breath_bpm, dfa1, rcmse, pip, dc, vti: Float?
+    /// Optional so a page written before motion was carried still decodes.
+    let motion: Float?
 }
 
 struct MetricExportPage: Codable {
@@ -597,7 +604,7 @@ final class MetricSyncService {
                 mean_bpm: s.meanBPM, rmssd: s.rmssd, sdnn: s.sdnn, pnn50: s.pnn50,
                 lf_hf: s.lfHF, rsa_ms: s.rsaMs, coherence: s.coherence, cbi: s.cbi,
                 breath_bpm: s.breathBPM, dfa1: s.dfa1, rcmse: s.rcmse, pip: s.pip,
-                dc: s.dc, vti: s.vti) })
+                dc: s.dc, vti: s.vti, motion: s.motion) })
         if (try? await client.uploadMetrics(payload, userID: userID)) != nil,
            let last = samples.last {
             lastSyncedISO = iso.string(from: last.timestamp)

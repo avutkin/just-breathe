@@ -77,6 +77,7 @@ class MetricSample(BaseModel):
     breath_bpm: Optional[float] = None
     dfa1: Optional[float] = None
     rcmse: Optional[float] = None
+    motion: Optional[float] = None
     pip: Optional[float] = None
     dc: Optional[float] = None
     vti: Optional[float] = None

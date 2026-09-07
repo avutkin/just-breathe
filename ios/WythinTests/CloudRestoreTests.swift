@@ -11,11 +11,28 @@ final class CloudRestoreTests: XCTestCase {
         return ModelContext(container)
     }
 
-    private func sample(_ ts: String, rmssd: Float? = 40) -> MetricExportSample {
+    private func sample(_ ts: String, rmssd: Float? = 40,
+                        motion: Float? = nil) -> MetricExportSample {
         MetricExportSample(ts: ts, mean_bpm: 62, rmssd: rmssd, sdnn: nil, pnn50: nil,
                            lf_hf: 1.2, rsa_ms: 25, coherence: nil, cbi: nil,
                            breath_bpm: nil, dfa1: 1.0, rcmse: nil, pip: 40,
-                           dc: 7.5, vti: 3.7)
+                           dc: 7.5, vti: 3.7, motion: motion)
+    }
+
+    /// A restored night has to carry motion, or it scores differently from the
+    /// night the device recorded — every gate in the sleep pipeline is relative
+    /// to it. A page written before motion was carried decodes with nil.
+    func testRestoredSamplesCarryMotion() throws {
+        let json = """
+        {"samples": [
+          {"ts": "2026-09-06T04:00:00Z", "mean_bpm": 57, "motion": 3.9},
+          {"ts": "2026-09-06T04:00:30Z", "mean_bpm": 58}
+        ], "next_cursor": null}
+        """.data(using: .utf8)!
+        let page = try JSONDecoder().decode(MetricExportPage.self, from: json)
+        XCTAssertEqual(page.samples.count, 2)
+        XCTAssertEqual(page.samples[0].motion ?? -1, 3.9, accuracy: 0.001)
+        XCTAssertNil(page.samples[1].motion, "a page written before motion was carried still decodes")
     }
 
     // MARK: Timestamp parsing

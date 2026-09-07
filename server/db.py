@@ -176,6 +176,12 @@ CREATE INDEX IF NOT EXISTS usage_events_user_ts ON usage_events(user_id, ts);
 -- is idempotent, so this block is safe to re-run and safe to grow. Columns
 -- added to a CREATE TABLE body above only reach a database that does not yet
 -- exist; existing deployments need them stated here as well.
+-- Motion (SD of the ACC vector magnitude, mg). The one channel the sleep
+-- pipeline leans on hardest and the only one that never left the phone, so a
+-- night that scored wrong could not be examined without the device in hand —
+-- and the profiling tools in tools/ were structurally unable to reproduce what
+-- the device did. See tools/nights.sql.
+ALTER TABLE metric_samples ADD COLUMN IF NOT EXISTS motion REAL;
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS impact_delta_pct REAL;
 -- Breath Rate, the ninth named metric, added once it earned a tile of its own.
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS before_breath REAL;
