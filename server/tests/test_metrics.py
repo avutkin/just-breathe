@@ -3,6 +3,14 @@ from contextlib import asynccontextmanager
 import pytest
 from httpx import AsyncClient, ASGITransport
 from server.main import app
+from datetime import datetime, timedelta, timezone
+
+
+# Stamps relative to now: the test reads its rows back through the 30-day
+# window, which a fixed date fell out of.
+def _ts(minute, second=0):
+    base = datetime.now(timezone.utc).replace(hour=11, minute=0, second=0, microsecond=0) - timedelta(days=1)
+    return (base + timedelta(minutes=minute, seconds=second)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 @asynccontextmanager
 async def _client():
@@ -20,7 +28,7 @@ def _sample(ts, pip):
 @pytest.mark.asyncio
 async def test_upload_is_idempotent_and_scoped():
     async with _client() as c:
-        body = {"samples": [_sample("2026-07-27T10:00:00Z", 30), _sample("2026-07-27T10:00:02Z", 31)]}
+        body = {"samples": [_sample(_ts(0, 0), 30), _sample(_ts(0, 2), 31)]}
         r = await c.post("/v1/metrics", json=body, headers={"X-User-ID": "ms-A"})
         assert r.status_code == 200 and r.json()["stored"] == 2
         # Re-post same ts → no duplicates (ON CONFLICT DO NOTHING)
@@ -30,7 +38,7 @@ async def test_upload_is_idempotent_and_scoped():
 @pytest.mark.asyncio
 async def test_delete_my_data_scoped_to_token_user():
     async with _client() as c:
-        await c.post("/v1/metrics", json={"samples": [_sample("2026-07-27T11:00:00Z", 30)]},
+        await c.post("/v1/metrics", json={"samples": [_sample(_ts(60, 0), 30)]},
                      headers={"X-User-ID": "ms-del"})
         tok = (await c.post("/v1/tokens", json={"name": "t"}, headers={"X-User-ID": "ms-del"})).json()["token"]
         r = await c.delete("/v1/me/data", headers={"Authorization": f"Bearer {tok}"})
@@ -47,10 +55,10 @@ async def test_valueless_samples_are_not_stored():
     device = f"ms-empty-{uuid.uuid4().hex[:8]}"
     async with _client() as c:
         r = await c.post("/v1/metrics", headers={"X-User-ID": device}, json={"samples": [
-            _sample("2026-07-27T11:00:00Z", 30),                      # real
-            {"ts": "2026-07-27T11:00:02Z"},                           # every metric null
-            {"ts": "2026-07-27T11:00:04Z", "mean_bpm": None, "rmssd": None},
-            _sample("2026-07-27T11:00:06Z", 31),                      # real
+            _sample(_ts(60, 0), 30),                      # real
+            {"ts": _ts(60, 2)},                           # every metric null
+            {"ts": _ts(60, 4), "mean_bpm": None, "rmssd": None},
+            _sample(_ts(60, 6), 31),                      # real
         ]})
         assert r.status_code == 200, r.text
         body = r.json()
@@ -70,7 +78,7 @@ async def test_valueless_samples_are_not_stored():
     # A sample carrying a single real value is still a reading and is kept.
     async with _client() as c:
         r = await c.post("/v1/metrics", headers={"X-User-ID": device}, json={"samples": [
-            {"ts": "2026-07-27T11:00:08Z", "coherence": 0.5},
+            {"ts": _ts(60, 8), "coherence": 0.5},
         ]})
     assert r.json()["stored"] == 1
 
@@ -84,9 +92,9 @@ async def test_export_pages_in_order_and_is_scoped():
     other = f"ms-exp-{uuid.uuid4().hex[:8]}"
     async with _client() as c:
         await c.post("/v1/metrics", headers={"X-User-ID": dev}, json={"samples": [
-            _sample(f"2026-07-27T10:00:0{i}Z", 30 + i) for i in range(3)]})
+            _sample(_ts(0, i), 30 + i) for i in range(3)]})
         await c.post("/v1/metrics", headers={"X-User-ID": other}, json={"samples": [
-            _sample("2026-07-27T10:00:00Z", 99)]})
+            _sample(_ts(0, 0), 99)]})
 
         r1 = await c.get("/v1/metrics/export", params={"limit": 2},
                          headers={"X-User-ID": dev})
