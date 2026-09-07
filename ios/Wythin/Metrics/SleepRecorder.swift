@@ -144,9 +144,11 @@ enum SleepRecorder {
                                                         now: now,
                                                         recordedDays: recordedDays)
         where written.count < SleepThresholds.maxNightsPerPass {
-            let night = overrides[detected.day]?.applied(to: detected) ?? detected
+            let correction = overrides[detected.day]
+            let night = correction?.applied(to: detected) ?? detected
             written.append(record(night, from: points,
-                                  existing: current + written, context: context))
+                                  existing: current + written, context: context,
+                                  detected: detected, correction: correction))
         }
         commit(context)
     }
@@ -244,7 +246,9 @@ enum SleepRecorder {
     private static func record(_ night: SleepWindow,
                                from points: [MetricsHistoryPoint],
                                existing: [ActivityLog],
-                               context: ModelContext) -> ActivityLog {
+                               context: ModelContext,
+                               detected: SleepWindow? = nil,
+                               correction: SleepWindowOverride? = nil) -> ActivityLog {
         let nightPoints = points.filter {
             $0.timestamp >= night.startedAt && $0.timestamp <= night.endedAt
         }
@@ -254,6 +258,15 @@ enum SleepRecorder {
         log.endedAt = night.endedAt
         log.isManual = false
         log.sleepAlgorithmVersion = SleepThresholds.algorithmVersion
+        // Only when the correction actually moved something. A correction that
+        // restates the boundaries the detector already had is not an error to
+        // learn from, and recording it as one would count agreement as a miss.
+        if let detected, let correction,
+           detected.startedAt != night.startedAt || detected.endedAt != night.endedAt {
+            log.sleepDetectedStart = detected.startedAt
+            log.sleepDetectedEnd   = detected.endedAt
+            log.sleepCorrectedAt   = correction.correctedAt
+        }
 
         let tick = tickSeconds(nightPoints)
         let detailed = SleepStages.detailed(nightPoints)

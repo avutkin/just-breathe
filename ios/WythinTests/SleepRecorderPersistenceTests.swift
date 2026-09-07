@@ -68,6 +68,56 @@ final class SleepRecorderPersistenceTests: XCTestCase {
                        accuracy: 60, "the night should end where the sleeper said")
     }
 
+    /// A correction is the only ground truth this app will ever have for where
+    /// a night begins and ends. Keeping only the corrected value discards the
+    /// label: the detector's own answer is gone, so the error it made cannot be
+    /// measured, and no threshold can be calibrated against it.
+    func testACorrectionKeepsTheDetectorsAnswerBesideIt() {
+        let writer = ModelContext(container)
+        seedNight(writer, day: 20)
+        SleepRecorder.recordIfDue(context: writer, now: at(21, 8))
+        guard let before = sleepLogs(in: writer).first,
+              let proposed = before.endedAt else { return XCTFail("no night") }
+        let day = Calendar.current.startOfDay(for: proposed)
+
+        let corrected = Calendar.current.date(bySettingHour: 7, minute: 0, second: 0,
+                                              of: proposed)!
+        writer.insert(SleepWindowOverride(day: day, endedAt: corrected))
+        try! writer.save()
+        SleepRecorder.recordIfDue(context: writer, now: at(21, 9))
+
+        guard let after = sleepLogs(in: ModelContext(container)).first else {
+            return XCTFail("no night after the correction")
+        }
+        XCTAssertEqual(after.endedAt?.timeIntervalSince(corrected) ?? .infinity, 0, accuracy: 60,
+                       "the night ends where the sleeper said")
+        XCTAssertNotNil(after.sleepCorrectedAt, "the night is marked as corrected")
+        XCTAssertEqual(after.sleepDetectedEnd?.timeIntervalSince(proposed) ?? .infinity, 0,
+                       accuracy: 60,
+                       "and keeps what the detector proposed, so the miss is measurable")
+    }
+
+    /// A correction that restates what the detector already said is agreement,
+    /// not an error. Recording it as one would count every confirmation as a
+    /// miss and drag any calibration built on these pairs toward nonsense.
+    func testAgreementIsNotRecordedAsAMiss() {
+        let writer = ModelContext(container)
+        seedNight(writer, day: 20)
+        SleepRecorder.recordIfDue(context: writer, now: at(21, 8))
+        guard let before = sleepLogs(in: writer).first,
+              let proposed = before.endedAt else { return XCTFail("no night") }
+        let day = Calendar.current.startOfDay(for: proposed)
+
+        // The sleeper drags the edge and puts it back where it was.
+        writer.insert(SleepWindowOverride(day: day, endedAt: proposed))
+        try! writer.save()
+        SleepRecorder.recordIfDue(context: writer, now: at(21, 9))
+
+        let after = sleepLogs(in: ModelContext(container)).first
+        XCTAssertNil(after?.sleepDetectedEnd, "agreement leaves no error to learn from")
+        XCTAssertNil(after?.sleepCorrectedAt)
+    }
+
     func testACorrectionSurvivesAnAlgorithmBump() {
         // The reason the correction is stored beside the night rather than on
         // it. Every algorithm bump purges stored nights and re-detects them; a

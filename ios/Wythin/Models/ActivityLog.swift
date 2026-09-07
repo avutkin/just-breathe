@@ -202,6 +202,18 @@ final class ActivityLog {
     /// Sleep Regularity Index over the trailing nights available at record
     /// time. Nil until there are at least two nights to compare.
     var sleepRegularity: Float?
+    /// What the detector proposed for this night, before the sleeper's
+    /// correction was laid over it. Nil when the night was never corrected.
+    ///
+    /// Kept because a correction is the only ground truth this app will ever
+    /// have for where a night begins and ends — someone who was there, saying
+    /// so. Storing only the corrected value throws the label away and leaves
+    /// the pair unrecoverable: the detector's answer is gone, so there is
+    /// nothing to measure the error against.
+    var sleepDetectedStart: Date?
+    var sleepDetectedEnd:   Date?
+    /// When the correction was made.
+    var sleepCorrectedAt:   Date?
 
     /// The five sections, stored individually so the row can render them
     /// without recomputing, and so an ABSENT section stays absent. A section
