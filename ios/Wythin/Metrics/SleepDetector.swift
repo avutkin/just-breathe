@@ -122,12 +122,36 @@ enum SleepThresholds {
     /// with no structure at all (axis identically zero) reports no REM rather
     /// than reporting itself as entirely REM.
     ///
-    /// `deepDepth` at 2.2 is calibrated against a real overnight capture,
-    /// where it selects the deepest ~22% — inside the typical adult N3 range
-    /// of 13–23%. A night with less depth structure now returns less N3,
-    /// which is the entire point of the change.
-    static let deepDepth: Double = 2.2
-    static let remDepth: Double = 0.0
+    /// Where the depth axis is cut into N3 / N2 / REM.
+    ///
+    /// Recalibrated 2026-09-06 against eight real nights from four people,
+    /// replayed through this pipeline, rather than the single capture the
+    /// previous values came from. Adult norms for reference: N3 13–23% of
+    /// sleep, REM 20–25%.
+    ///
+    /// `remDepth` was 0.0, and that was a structural error rather than a
+    /// mis-set number. The axis is standardised **within the night**, so its
+    /// mean is zero by construction — cutting at zero therefore takes about
+    /// half of every night as REM, whatever the night looked like. Measured
+    /// across the corpus it returned a median 42.5% REM against a 20–25% norm,
+    /// on six nights out of eight above 40%.
+    ///
+    /// The values are chosen for where they land on real nights:
+    ///   deep 1.8 → N3 median 18.8% (range 12.0–35.7)
+    ///   rem −0.7 → REM median ~27% in replay
+    ///
+    /// The REM target is deliberately not the norm itself. That corpus is
+    /// replayed from server samples, which carry no motion, so wake is
+    /// under-detected — and undetected wake is shallow, so it lands in REM. On
+    /// the three nights where the device's own output can be compared, it
+    /// reported REM 5.7 points lower than the motion-free replay. −0.7 aims
+    /// replay at ~27% so a real night lands near 22%.
+    ///
+    /// **Re-check this once nights carrying motion arrive** (motion began
+    /// syncing 2026-09-06). The offset above rests on three nights, and it is
+    /// the one number here that is inferred rather than measured directly.
+    static let deepDepth: Double = 1.8
+    static let remDepth: Double = -0.7
 
     /// 13: baselines moved from per-sample medians to per-minute ones. Every
     /// stored night was scored against a baseline weighted by sampling density,
@@ -136,7 +160,11 @@ enum SleepThresholds {
     /// 14: nights carry `sleepDetailJSON` (hypnogram runs, position bands,
     /// wake bouts, nadir) so the upload and the dashboard can show the night.
     /// Build 120 shipped 13 without it, so those nights are rebuilt as well.
-    static let algorithmVersion: Int = 14
+    /// 15: depth-axis cut points recalibrated against eight real nights from
+    /// four people. Every stored night's stage split changes — most of all its
+    /// REM, which was running at roughly double the adult norm — so they are
+    /// rebuilt rather than left showing the old division.
+    static let algorithmVersion: Int = 15
     /// Shortest run that can stand as its own stage. Sleep changes state on
     /// the scale of minutes; anything briefer is a turn or a dropped estimate,
     /// and leaving it in inflates every count derived from the hypnogram.
