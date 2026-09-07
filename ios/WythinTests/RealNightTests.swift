@@ -129,7 +129,8 @@ final class RealNightTests: XCTestCase {
         var over = SleepScoreInput(bedtimeSDMin: nil, asleepSec: 10.1 * 3600,
                                    needSec: 7.75 * 3600, wakeBouts: 3,
                                    longestUnbrokenSec: 3 * 3600, hrNadirDip: 14,
-                                   hrNadirFraction: 0.45, meanRMSSD: 52, steadyFraction: 0.9)
+                                   hrNadirFraction: 0.45, quietRMSSD: 52, quietRMSSDBaseline: 50,
+                                   steadyFraction: 0.9)
         let long = SleepScore.compute(over).sections[.duration] ?? 0
         over.asleepSec = 4 * 3600
         let short = SleepScore.compute(over).sections[.duration] ?? 100

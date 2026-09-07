@@ -282,7 +282,13 @@ enum SleepRecorder {
 
         let tick = tickSeconds(nightPoints)
         let detailed = SleepStages.detailed(nightPoints)
-        apply(stages: SleepStages.withinSleep(nightPoints), to: log, points: nightPoints, tickSec: tick)
+        let coarse = SleepStages.withinSleep(nightPoints)
+        // Stored, not just scored: the next night's autonomic section is a
+        // ratio against this sleeper's own recent values, so tonight has to
+        // leave one behind.
+        log.sleepQuietRMSSD = Self.quietMedian(nightPoints, coarse, \.rmssd)
+        log.sleepQuietDC    = Self.quietMedian(nightPoints, coarse, \.dc)
+        apply(stages: coarse, to: log, points: nightPoints, tickSec: tick)
         apply(detail: detailed, to: log, points: nightPoints, tickSec: tick)
         let scored = score(night: night, points: nightPoints, existing: existing)
         apply(score: scored.score, to: log)
@@ -373,11 +379,35 @@ enum SleepRecorder {
         var longestWakeSec: Double
     }
 
+    /// Median of `value` over the ticks classified as quiet sleep.
+    ///
+    /// Nil below `minQuietTicks`: a handful of quiet ticks is not a reading of
+    /// the night's vagal tone, and reporting one would put a number on noise.
+    static func quietMedian(_ points: [MetricsHistoryPoint],
+                            _ stages: [SleepStage],
+                            _ value: KeyPath<MetricsHistoryPoint, Float?>) -> Float? {
+        guard stages.count == points.count else { return nil }
+        let quiet = points.indices
+            .filter { stages[$0] == .quiet }
+            .compactMap { points[$0][keyPath: value] }
+        guard quiet.count >= minQuietTicks else { return nil }
+        return median(quiet)
+    }
+
+    /// Enough quiet sleep to describe. At the 30 s background cadence this is
+    /// about ten minutes of it.
+    static let minQuietTicks = 20
+
+    static func median(_ values: [Float]) -> Float? {
+        guard !values.isEmpty else { return nil }
+        let sorted = values.sorted()
+        return sorted[sorted.count / 2]
+    }
+
     private static func score(night: SleepWindow,
                               points: [MetricsHistoryPoint],
                               existing: [ActivityLog]) -> (score: SleepScore, continuity: ContinuityInputs) {
         let hrs = points.compactMap { $0.meanBPM }
-        let rmssds = points.compactMap { $0.rmssd }
         // The same interior rule the reported minutes use. Continuity is scored
         // on wake bouts, so scoring it from a different classification than the
         // one displayed would print a continuity that contradicts the awake
@@ -396,6 +426,17 @@ enum SleepRecorder {
                 nadirAt = Double(idx) / Double(max(1, hrs.count - 1))
             }
         }
+
+        // Vagal tone from quiet sleep only. Averaging it across the night
+        // averages over REM, where it is meant to be low — see
+        // `ActivityLog.sleepQuietRMSSD`. Median rather than mean: one artefact
+        // tick should not move a night's autonomic reading.
+        let quietRMSSD = Self.quietMedian(points, stages, \.rmssd)
+        let quietDC    = Self.quietMedian(points, stages, \.dc)
+
+        // This sleeper's own recent nights, which is what the ratio is against.
+        let priorRMSSD = Self.median(existing.compactMap(\.sleepQuietRMSSD))
+        let priorDC    = Self.median(existing.compactMap(\.sleepQuietDC))
 
         // Continuity, from the hypnogram rather than from wall clock.
         var bouts = 0
@@ -426,7 +467,10 @@ enum SleepRecorder {
             longestUnbrokenSec: Double(longest) * tick,
             hrNadirDip: dip,
             hrNadirFraction: nadirAt,
-            meanRMSSD: rmssds.isEmpty ? nil : rmssds.reduce(0, +) / Float(rmssds.count),
+            quietRMSSD: quietRMSSD,
+            quietRMSSDBaseline: priorRMSSD,
+            quietDC: quietDC,
+            quietDCBaseline: priorDC,
             steadyFraction: SleepBreathing.steadyFraction(points)
         )
         return (SleepScore.compute(input),

@@ -61,7 +61,22 @@ struct SleepScoreInput {
     var longestUnbrokenSec: Double?
     var hrNadirDip: Float?          // bpm below the settled-onset rate
     var hrNadirFraction: Double?    // where in the night the nadir fell, 0–1
-    var meanRMSSD: Float?
+    /// Vagal tone inside quiet sleep, and this sleeper's own recent median of
+    /// the same measurement. Both are needed: the pair is scored as a ratio,
+    /// because the level is trait and only the deviation is the night.
+    ///
+    /// RMSSD falls steeply with age and varies several-fold between healthy
+    /// people — the old absolute 22–62 ms ramp meant a healthy sixty-year-old
+    /// could not score well on it however they slept, which measured identity
+    /// rather than sleep and contradicted the rule the rest of this file keeps.
+    var quietRMSSD: Float?
+    var quietRMSSDBaseline: Float?
+    /// Deceleration capacity, same treatment. Better evidenced than RMSSD as a
+    /// risk marker — in HypnoLaus, after FDR correction DC survived and every
+    /// time- and frequency-domain HRV parameter did not — so it carries the
+    /// larger share of the pair.
+    var quietDC: Float?
+    var quietDCBaseline: Float?
     var steadyFraction: Double?     // share of the night breathing read as steady
 }
 
@@ -110,12 +125,25 @@ struct SleepScore {
             // Depth, then placement, then the night's own vagal level. A nadir
             // that arrives near the middle is the settled pattern; one that
             // arrives near morning is the signature evening load leaves.
-            var parts: [(Double, Double)] = [(0.45, ramp(Double(dip), worst: 6, best: 18))]
+            var parts: [(Double, Double)] = [(0.40, ramp(Double(dip), worst: 6, best: 18))]
             if let at = input.hrNadirFraction {
-                parts.append((0.25, ramp(-abs(at - 0.45), worst: -0.35, best: 0)))
+                parts.append((0.20, ramp(-abs(at - 0.45), worst: -0.35, best: 0)))
             }
-            if let rmssd = input.meanRMSSD {
-                parts.append((0.30, ramp(Double(rmssd), worst: 22, best: 62)))
+            // Vagal tone, against this sleeper's own recent nights rather than
+            // a population band: their median is 50, thirty per cent above it
+            // is 100, thirty per cent below is 0. Nightly RMSSD carries a
+            // within-person CV of 27%, so a ±30% span is roughly ±1 SD — wide
+            // enough that an ordinary night is not read as a bad one.
+            //
+            // Absent rather than zero when there is no baseline yet. The parts
+            // are weight-normalised below, so a new sleeper is scored on depth
+            // and placement alone instead of being marked down for having no
+            // history.
+            if let dc = input.quietDC, let base = input.quietDCBaseline, base > 0 {
+                parts.append((0.25, ramp(Double(dc / base), worst: 0.70, best: 1.30)))
+            }
+            if let rmssd = input.quietRMSSD, let base = input.quietRMSSDBaseline, base > 0 {
+                parts.append((0.15, ramp(Double(rmssd / base), worst: 0.70, best: 1.30)))
             }
             let totalWeight = parts.reduce(0) { $0 + $1.0 }
             sections[.autonomic] = round(parts.reduce(0) { $0 + $1.0 * $1.1 } / totalWeight)

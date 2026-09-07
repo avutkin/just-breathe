@@ -169,7 +169,11 @@ enum SleepThresholds {
     /// device worn for a few nights at a time it scored intermittent wear
     /// rather than an irregular sleeper. Every stored night's timing section
     /// changes, so they are rebuilt.
-    static let algorithmVersion: Int = 16
+    /// 17: the autonomic section takes vagal tone from quiet sleep only, and
+    /// scores it against this sleeper's own recent nights rather than an
+    /// absolute 22–62 ms band. Deceleration capacity joins RMSSD and carries
+    /// the larger share. Every stored night's autonomic score changes.
+    static let algorithmVersion: Int = 17
     /// Shortest run that can stand as its own stage. Sleep changes state on
     /// the scale of minutes; anything briefer is a turn or a dropped estimate,
     /// and leaving it in inflates every count derived from the hypnogram.

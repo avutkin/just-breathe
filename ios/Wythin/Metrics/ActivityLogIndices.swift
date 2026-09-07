@@ -250,7 +250,7 @@ extension ActivityLog {
         case .continuity:
             return sleepStageSummary ?? "how unbroken the night was"
         case .autonomic:
-            return "how far your heart rate settled, and when"
+            return "how far your heart rate settled, when, and your vagal tone against your usual"
         case .breathing:
             return "steadiness of breathing overnight"
         }

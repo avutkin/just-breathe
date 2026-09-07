@@ -208,6 +208,20 @@ final class ActivityLog {
     var sleepRegularity: Float?
     /// Circular SD of sleep onset across the recorded nights, in minutes.
     var sleepBedtimeSDMin: Double?
+    /// Median RMSSD and deceleration capacity taken **inside quiet sleep only**,
+    /// not across the night.
+    ///
+    /// A whole-night mean averages over states that are physiologically
+    /// opposite: vagal tone runs high in quiet sleep and drops through REM,
+    /// which is sympathetically activated. The mean is therefore weighted by
+    /// whatever stage mix the night happened to produce, so two nights with the
+    /// same recovery and different REM fractions report different numbers for a
+    /// reason that has nothing to do with recovery.
+    ///
+    /// Stored per night because the score compares them against this sleeper's
+    /// own recent nights rather than against a population figure.
+    var sleepQuietRMSSD: Float?
+    var sleepQuietDC:    Float?
     /// What the detector proposed for this night, before the sleeper's
     /// correction was laid over it. Nil when the night was never corrected.
     ///
