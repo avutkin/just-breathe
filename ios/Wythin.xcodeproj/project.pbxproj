@@ -58,6 +58,9 @@
 		A124 /* PacerCircleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F124 /* PacerCircleView.swift */; };
 		A280 /* HoldProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F280 /* HoldProtocol.swift */; };
 		A281 /* BreathHoldEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F281 /* BreathHoldEngine.swift */; };
+		A283 /* BreathScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = F283 /* BreathScript.swift */; };
+		A284 /* ScriptedBreathEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F284 /* ScriptedBreathEngine.swift */; };
+		A285 /* ScriptedBreathSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F285 /* ScriptedBreathSessionView.swift */; };
 		A282 /* HoldSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F282 /* HoldSessionView.swift */; };
 		A270 /* BreathPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = F270 /* BreathPattern.swift */; };
 		A271 /* BoxBreathEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F271 /* BoxBreathEngine.swift */; };
@@ -92,7 +95,6 @@
 		2781CE5FFE6C4F6A09BB10DA /* SessionIndexGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = D15C26A1221A7A4516DABAB9 /* SessionIndexGrid.swift */; };
 		F84F7CB62F996193D6F7DBA1 /* ActivityLogRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10284DCB6D50B66249C5AB82 /* ActivityLogRow.swift */; };
 		A138 /* PolyvagalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F138 /* PolyvagalState.swift */; };
-		A139 /* CurrentStateCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F139 /* CurrentStateCard.swift */; };
 		A140 /* RecommendedActionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F140 /* RecommendedActionCard.swift */; };
 		A141 /* DFACompute.swift in Sources */ = {isa = PBXBuildFile; fileRef = F141 /* DFACompute.swift */; };
 		A142 /* AdvancedHRVCompute.swift in Sources */ = {isa = PBXBuildFile; fileRef = F142 /* AdvancedHRVCompute.swift */; };
@@ -195,6 +197,7 @@
 		AT07 /* ActivityMetricStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT07 /* ActivityMetricStatsTests.swift */; };
 		AT10 /* ClientProfileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT10 /* ClientProfileTests.swift */; };
 		AT11 /* PracticeCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT11 /* PracticeCatalogTests.swift */; };
+		AT98 /* ScriptedBreathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT98 /* ScriptedBreathTests.swift */; };
 		AT80 /* BreathHoldEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT80 /* BreathHoldEngineTests.swift */; };
 		AT71 /* ActiveActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT71 /* ActiveActivityTests.swift */; };
 		AT12 /* MotionComputeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT12 /* MotionComputeTests.swift */; };
@@ -231,7 +234,6 @@
 		A994 /* EDRCompute.swift in Sources */ = {isa = PBXBuildFile; fileRef = F994 /* EDRCompute.swift */; };
 		A995 /* BreathRateTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F995 /* BreathRateTracker.swift */; };
 		AT52 /* LiveBaselineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT52 /* LiveBaselineTests.swift */; };
-		ATCC /* CurrentStateCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FTCC /* CurrentStateCardTests.swift */; };
 		A54 /* LiveReading.swift in Sources */ = {isa = PBXBuildFile; fileRef = F54 /* LiveReading.swift */; };
 		AT55 /* LiveReadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT55 /* LiveReadingTests.swift */; };
 		A56 /* LiveStateClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = F56 /* LiveStateClassifier.swift */; };
@@ -358,6 +360,9 @@
 		F124 /* PacerCircleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacerCircleView.swift; sourceTree = "<group>"; };
 		F280 /* HoldProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldProtocol.swift; sourceTree = "<group>"; };
 		F281 /* BreathHoldEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreathHoldEngine.swift; sourceTree = "<group>"; };
+		F283 /* BreathScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreathScript.swift; sourceTree = "<group>"; };
+		F284 /* ScriptedBreathEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptedBreathEngine.swift; sourceTree = "<group>"; };
+		F285 /* ScriptedBreathSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptedBreathSessionView.swift; sourceTree = "<group>"; };
 		F282 /* HoldSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldSessionView.swift; sourceTree = "<group>"; };
 		F270 /* BreathPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreathPattern.swift; sourceTree = "<group>"; };
 		F271 /* BoxBreathEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoxBreathEngine.swift; sourceTree = "<group>"; };
@@ -392,7 +397,6 @@
 		D15C26A1221A7A4516DABAB9 /* SessionIndexGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIndexGrid.swift; sourceTree = "<group>"; };
 		10284DCB6D50B66249C5AB82 /* ActivityLogRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogRow.swift; sourceTree = "<group>"; };
 		F138 /* PolyvagalState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolyvagalState.swift; sourceTree = "<group>"; };
-		F139 /* CurrentStateCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentStateCard.swift; sourceTree = "<group>"; };
 		F140 /* RecommendedActionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendedActionCard.swift; sourceTree = "<group>"; };
 		F141 /* DFACompute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DFACompute.swift; sourceTree = "<group>"; };
 		F142 /* AdvancedHRVCompute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedHRVCompute.swift; sourceTree = "<group>"; };
@@ -498,6 +502,7 @@
 		FT07 /* ActivityMetricStatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityMetricStatsTests.swift; sourceTree = "<group>"; };
 		FT10 /* ClientProfileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientProfileTests.swift; sourceTree = "<group>"; };
 		FT11 /* PracticeCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeCatalogTests.swift; sourceTree = "<group>"; };
+		FT98 /* ScriptedBreathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptedBreathTests.swift; sourceTree = "<group>"; };
 		FT80 /* BreathHoldEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreathHoldEngineTests.swift; sourceTree = "<group>"; };
 		FT71 /* ActiveActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveActivityTests.swift; sourceTree = "<group>"; };
 		FT12 /* MotionComputeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionComputeTests.swift; sourceTree = "<group>"; };
@@ -555,7 +560,6 @@
 		F994 /* EDRCompute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EDRCompute.swift; sourceTree = "<group>"; };
 		F995 /* BreathRateTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreathRateTracker.swift; sourceTree = "<group>"; };
 		FT52 /* LiveBaselineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBaselineTests.swift; sourceTree = "<group>"; };
-		FTCC /* CurrentStateCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentStateCardTests.swift; sourceTree = "<group>"; };
 		F54 /* LiveReading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveReading.swift; sourceTree = "<group>"; };
 		FT55 /* LiveReadingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveReadingTests.swift; sourceTree = "<group>"; };
 		F56 /* LiveStateClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveStateClassifier.swift; sourceTree = "<group>"; };
@@ -728,7 +732,6 @@
 				F129 /* ACCWaveformView.swift */,
 				F130 /* RRTachogramView.swift */,
 				F131 /* HRVAnalysisView.swift */,
-				F139 /* CurrentStateCard.swift */,
 				F140 /* RecommendedActionCard.swift */,
 				F147 /* LiveStateWidget.swift */,
 				F991 /* LiveDeltaTile.swift */,
@@ -834,6 +837,7 @@
 				F201 /* PracticeCatalog.swift */,
 				F280 /* HoldProtocol.swift */,
 				F270 /* BreathPattern.swift */,
+				F283 /* BreathScript.swift */,
 				F138 /* PolyvagalState.swift */,
 				F160 /* ClientProfile.swift */,
 				679350D1BBA9E9E28C249EC1 /* UsageEventLog.swift */,
@@ -863,6 +867,8 @@
 				F272 /* MetronomeCue.swift */,
 				F273 /* BoxPacerView.swift */,
 				F274 /* BoxBreathingSessionView.swift */,
+				F284 /* ScriptedBreathEngine.swift */,
+				F285 /* ScriptedBreathSessionView.swift */,
 			);
 			path = Resonate;
 			sourceTree = "<group>";
@@ -1021,6 +1027,7 @@
 				FT26 /* ImpactDeltaTests.swift */,
 				FT10 /* ClientProfileTests.swift */,
 				FT11 /* PracticeCatalogTests.swift */,
+				FT98 /* ScriptedBreathTests.swift */,
 				FT80 /* BreathHoldEngineTests.swift */,
 				FT71 /* ActiveActivityTests.swift */,
 				FT70 /* BoxBreathEngineTests.swift */,
@@ -1041,7 +1048,6 @@
 				FTCS /* ChartSegmenterTests.swift */,
 				FT51 /* LiveMetricTests.swift */,
 				FT52 /* LiveBaselineTests.swift */,
-				FTCC /* CurrentStateCardTests.swift */,
 				FT55 /* LiveReadingTests.swift */,
 				FT57 /* LiveStateClassifierTests.swift */,
 				FT58 /* LiveStateCopyTests.swift */,
@@ -1236,7 +1242,6 @@
 				A161 /* OnboardingFlow.swift in Sources */,
 				A162 /* OnboardingScreens.swift in Sources */,
 				A260 /* OnboardingCollectionScreens.swift in Sources */,
-				A139 /* CurrentStateCard.swift in Sources */,
 				A140 /* RecommendedActionCard.swift in Sources */,
 				A147 /* LiveStateWidget.swift in Sources */,
 				A991 /* LiveDeltaTile.swift in Sources */,
@@ -1299,6 +1304,9 @@
 				A124 /* PacerCircleView.swift in Sources */,
 				A280 /* HoldProtocol.swift in Sources */,
 				A281 /* BreathHoldEngine.swift in Sources */,
+				A283 /* BreathScript.swift in Sources */,
+				A284 /* ScriptedBreathEngine.swift in Sources */,
+				A285 /* ScriptedBreathSessionView.swift in Sources */,
 				A282 /* HoldSessionView.swift in Sources */,
 				A270 /* BreathPattern.swift in Sources */,
 				A271 /* BoxBreathEngine.swift in Sources */,
@@ -1416,6 +1424,7 @@
 				FD13F4B1CB1B182D4EB3D95D /* ActivityLogIndicesTests.swift in Sources */,
 				AT26 /* ImpactDeltaTests.swift in Sources */,
 				AT11 /* PracticeCatalogTests.swift in Sources */,
+				AT98 /* ScriptedBreathTests.swift in Sources */,
 				AT80 /* BreathHoldEngineTests.swift in Sources */,
 				AT71 /* ActiveActivityTests.swift in Sources */,
 				AT70 /* BoxBreathEngineTests.swift in Sources */,
@@ -1427,7 +1436,6 @@
 				ATCS /* ChartSegmenterTests.swift in Sources */,
 				AT51 /* LiveMetricTests.swift in Sources */,
 				AT52 /* LiveBaselineTests.swift in Sources */,
-				ATCC /* CurrentStateCardTests.swift in Sources */,
 				AT55 /* LiveReadingTests.swift in Sources */,
 				AT57 /* LiveStateClassifierTests.swift in Sources */,
 				AT58 /* LiveStateCopyTests.swift in Sources */,
@@ -1452,7 +1460,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 107;
+				CURRENT_PROJECT_VERSION = 120;
 				DEVELOPMENT_TEAM = FHUVQ8JNXD;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Wythin/Info.plist;
@@ -1541,7 +1549,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 107;
+				CURRENT_PROJECT_VERSION = 120;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -1560,7 +1568,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 107;
+				CURRENT_PROJECT_VERSION = 120;
 				DEVELOPMENT_TEAM = FHUVQ8JNXD;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Wythin/Info.plist;
@@ -1642,7 +1650,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 107;
+				CURRENT_PROJECT_VERSION = 120;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;

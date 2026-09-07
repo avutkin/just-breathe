@@ -93,24 +93,100 @@ enum PracticeCatalog {
             kind: .pacer(.box)),
 
         Practice(
-            id: "resonance-breathing", title: "Resonance Breathing", subtitle: "Even in, even out, nothing held",
+            id: "resonance-breathing", title: "Resonance Breathing", subtitle: "Even in, even out, set in seconds",
             category: .breathwork, states: [.stress, .focus],
             activityType: .breathwork, subtype: "Resonance",
             defaultDurationMins: 10, defaultBPM: EvenCadence.resonance.bpm,
-            description: "An even breath in and out with nothing held at either end, at the classic five-and-a-half-second cadence — about five and a half breaths a minute. Set the pace in the session; anywhere between three and eight seconds a side, in half seconds. The ring shows the whole cycle and the beat keeps you on it.",
+            description: "An even breath in and out with nothing held at either end, at the classic five-and-a-half-second cadence — about five and a half breaths a minute. Set the pace in seconds a side, anywhere from three to eight, in halves. The ring shows the whole cycle and the beat keeps you on it.",
             howItWorks: [
                 "Between about five and six seconds each way, the breath falls into step with the baroreflex — the loop that corrects blood pressure beat to beat — and heart rate swings furthest with each breath.",
                 "That is the point of the pace rather than a side effect: the rate that maximises the swing is the same one that raises vagally-mediated heart rate variability. It is why this band has a name at all.",
-                "Nothing is held at either end, so the breath stays even and unforced, which is what makes ten or twenty minutes of it sustainable — and what makes it usable as background to thinking rather than a thing you have to attend to.",
-                "Honest limits: the autonomic effect is well evidenced, and better decisions after slow breathing have been measured directly. Sharper creative output has not — that link rests on correlations between heart rate variability and divergent thinking, not on trials.",
+                "Nothing is held at either end, so the breath stays even and unforced, which is what makes ten or twenty minutes of it sustainable.",
             ],
-            evidence: [you2021, laborde2022, decouck2019, zaccaro2018],
+            evidence: [you2021, laborde2022, zaccaro2018],
             tags: ["Coherence", "Vagal Tone", "Calm"],
             art: practiceArt,
             // Declared as the cadence expresses it: 11 beats at 120 BPM is
             // exactly 5.5 s a phase, and whole beats are what keep the accent on
             // the phase change.
             kind: .pacer(EvenCadence.resonance.pattern)),
+
+        Practice(
+            id: "coherent-breathing-5x5", title: "Coherent Breathing 5×5", subtitle: "Five counts in, five out, eyes open",
+            category: .breathwork, states: [.focus, .stress],
+            activityType: .breathwork, subtype: "Coherent Breathing",
+            defaultDurationMins: 12, defaultBPM: 60,
+            description: "Five counts in, five counts out, one count a second. An even breath with no weight on either side — and unlike most slow breathing, it is meant to sharpen rather than settle you. Do it with your eyes open, looking at something: keeping the visual field engaged is what keeps the session alert, and the same breath with the eyes closed drifts toward a wind-down. The tempo, what a count is worth, and each phase\'s count are all yours to set; the seconds fall out of the three.",
+            howItWorks: [
+                "Blood pressure and heart rate carry a slow oscillation at roughly a tenth of a hertz — the wave Ludwig Traube and Ewald Hering described in the 1860s, still called the Traube–Hering wave. Five seconds each way is a ten-second cycle, which is exactly a tenth of a hertz, so this breath lands on that wave rather than beside it.",
+                "Equal counts give the in-breath as much room as the out-breath. Heart rate climbs through each inhale as the vagal brake eases and falls through each exhale as it comes back on, so the swing is large and symmetrical — the rousing half and the calming half in equal measure. That balance is what the sharpness is made of.",
+                "Counting to a click rather than watching a clock gives attention something concrete to hold, and the accented click opens each phase, so the turn is heard rather than read.",
+                "Honest limits: \"activating\" here describes that breath-by-breath swing and how people report the state, not a measured rise in sympathetic tone, and no trial has compared eyes open against eyes closed for this breath. What is well evidenced is the autonomic effect of breathing at this rate, and that slow breathing before a demanding task improves how well the task goes.",
+            ],
+            evidence: [decouck2019, you2021, laborde2022, zaccaro2018],
+            tags: ["Alert Calm", "Eyes Open", "Sharpness"],
+            art: practiceArt,
+            // 5 quarter-note counts at 60 BPM: one count a second, 5 s a phase,
+            // a 10 s cycle. Counts are whole by construction, which keeps the
+            // accent exactly on the turn at any tempo.
+            kind: .pacer(BreathPattern(inhale: 5, holdIn: 0, exhale: 5, holdOut: 0)),
+            paceControl: .clicksAndNote(defaultNote: .quarter)),
+
+        Practice(
+            id: "relaxing-breathing-4x6", title: "Relaxing Breathing 4×6", subtitle: "Four counts in, six counts out",
+            category: .breathwork, states: [.stress, .anxiety],
+            activityType: .breathwork, subtype: "Relaxing Breathing",
+            defaultDurationMins: 10, defaultBPM: 60,
+            description: "Four counts in, six counts out, one count a second. The out-breath is half as long again as the in-breath — prolonged exhalation, and the shape that turns slow breathing into a way down. Expect the pulse to settle within the first minute or two and the edge to come off; ten minutes leaves most people calmer than it found them. Eyes closed is fine.",
+            howItWorks: [
+                "Heart rate falls on every out-breath, as the vagal brake comes back on. Weighting the exhale spends more of each cycle on that side of the swing, so the pulse settles and vagally-mediated heart rate variability rises — the two markers that move first when arousal comes down.",
+                "Ten seconds a cycle is six breaths a minute. That is the slow-breathing band where the shift toward the parasympathetic side is best documented, and where the effect carries past the end of the session rather than stopping with it.",
+                "This is the pattern to reach for after something stressful, or when anxious arousal is higher than the situation calls for. In the month-long trial below, breathwork weighted toward the exhale improved mood more than the other breathing patterns tested — and lowered anxiety along with it.",
+                "Nothing is held at either end and the inhale is unforced, which is what makes ten or twenty minutes sustainable where a more strenuous pattern would not be.",
+                "Honest limits: a longer exhale is better evidenced for how it feels — mood, anxiety, perceived calm — than for producing a larger heart-rate-variability number than an even breath would. Take the ratio as the reliable route to the state, not as a bigger reading.",
+            ],
+            evidence: [balban2023, zaccaro2018, laborde2022],
+            tags: ["Longer Exhale", "Down-regulate", "Calm"],
+            art: practiceArt,
+            // 4 in, 6 out at one quarter-note count a second: a 10 s cycle, so
+            // six breaths a minute with the weight on the out-breath.
+            kind: .pacer(BreathPattern(inhale: 4, holdIn: 0, exhale: 6, holdOut: 0)),
+            paceControl: .clicksAndNote(defaultNote: .quarter)),
+
+        Practice(
+            id: "breath-stacking", title: "Breath Stacking", subtitle: "In, pump, top up, release",
+            category: .breathwork, states: [.focus, .stress],
+            activityType: .breathwork, subtype: "Breath Stacking",
+            defaultDurationMins: 5, defaultBPM: 60,
+            description: "Breathe in as you normally would. Hold what you have and widen the ribs against it — a pump rather than more air. Then take one more sip right to the top, and let the whole thing go slowly. Each round reaches a fuller chest than a single breath gets to on its own. Sit upright, work at the edge of comfortable rather than past it, and stop if you feel light-headed.",
+            howItWorks: [
+                "Stacking one inhale on another reaches an inflation an ordinary breath does not, which opens parts of the lungs that quiet breathing leaves under-used and puts a real stretch through the ribs and diaphragm.",
+                "A large inflation loads the stretch receptors in the lungs and the slow exhale that follows unloads them. That rise-and-release is a strong version of the swing every slow breath makes, which is why the exhale here is the part to take your time over.",
+                "The pump is what makes it a practice rather than a big breath: holding the air and widening the chest against it is a movement, and doing it deliberately is how the ribcage keeps the range it otherwise loses.",
+                "Honest limits: stacked inhalation is well established as a clinical technique for people who cannot fill their lungs unaided, where it is used to improve inspiratory volume and cough. Its use as a wellbeing practice in healthy adults borrows that mechanic without a trial behind it. The slow exhale is the part with the evidence.",
+            ],
+            evidence: [zaccaro2018, balban2023, laborde2022],
+            tags: ["Chest Opening", "Full Inflation", "Release"],
+            art: practiceArt,
+            kind: .scripted(.stacking)),
+
+        Practice(
+            id: "breath-retention-15x15", title: "Breath Retention 15×15", subtitle: "Fifteen full, fifteen empty",
+            category: .breathwork, states: [.stress, .focus],
+            activityType: .breathwork, subtype: "Breath Retention",
+            defaultDurationMins: 8, defaultBPM: 60,
+            description: "Breathe in naturally and sit full for fifteen. Take one more sip at the top, let it go, and sit empty for fifteen. Then press out the last of it and let the next breath come in on its own. Both ends of the breath are held, and both are finished a step past where the breath wanted to stop. Sit or lie down on land — never in or near water — and let a round go if the urge to breathe turns sharp.",
+            howItWorks: [
+                "Holding on full and on empty raises carbon dioxide, and the urge to breathe is a response to that rather than to running out of oxygen. Meeting the urge without acting on it is the thing being trained; the fifteen seconds is only the container.",
+                "A hold also brings on the diving response — the heart slows and the spleen squeezes a reserve of red cells into circulation — and repeating it is the stimulus the adaptations are built on.",
+                "The sip at the top and the squeeze at the bottom are the working part of each end. Going one step past where the breath would have stopped is what makes the range the practice trains, rather than simply waiting out a clock.",
+                "The natural breath between the holds is deliberately not counted. Chasing a pace immediately after a retention is how people end up over-breathing, so the guide waits on you there instead.",
+                "Honest limits: the adaptations documented below come from divers holding far longer than this, and the review raises open questions about very heavy long-term practice. Short holds are where the risk-to-benefit sits well.",
+            ],
+            evidence: [elia2021, persson2023, kox2014],
+            tags: ["CO2 Tolerance", "Both Ends", "Composure"],
+            art: practiceArt,
+            kind: .scripted(.retention)),
 
         Practice(
             id: "hold-breath", title: "Hold Breath", subtitle: "Holds on empty, in sets",

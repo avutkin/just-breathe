@@ -892,7 +892,10 @@ struct MetricsChartsView: View, Equatable {
             rmssdCard         // Calm Power
             hrCard            // Pulse
             sdnnCard          // Overall Variability
-            acCard            // Activation Capacity
+            acCard            // Throttle
+            hraCard           // Brake Bias
+            rhythmStabilityCard
+            qtviCard          // Repolarisation Stability
 
             signalQualitySection
         }
@@ -1199,7 +1202,7 @@ struct MetricsChartsView: View, Equatable {
 
     // MARK: AC
 
-    /// Activation Capacity — Vagal Tone's mirror, and free: the same PRSA pass
+    /// Throttle — Vagal Tone's mirror, and free: the same PRSA pass
     /// that yields DC yields AC, and the engine simply used to drop it.
     ///
     /// Drawn as a magnitude via `activationCapacity`. AC is negative by
@@ -1210,7 +1213,7 @@ struct MetricsChartsView: View, Equatable {
     /// same reason the two metrics share a scale: they come off one curve.
     private var acCard: some View {
         MetricChartCard(
-            title:    "Activation Capacity",
+            title:    "Throttle",
             technicalName: "Acceleration Capacity (AC)",
             subtitle: "How sharply your heart can speed up",
             yLabel:   "ms",
@@ -1237,6 +1240,135 @@ struct MetricsChartsView: View, Equatable {
             ),
             history: history, rawHistory: rawHistory, date: date
         ) { $0.activationCapacity }
+    }
+
+    // MARK: HRA
+
+    /// Brake Bias — Heart Rate Asymmetry (Guzik's Index).
+    ///
+    /// The third member of the brake/throttle set: Vagal Tone is how hard the
+    /// brake pulls, Throttle is how hard the accelerator pushes, and this is
+    /// which of the two is doing more of the work. Unlike either, it survives
+    /// a change in overall variability — a system can halve its RMSSD and keep
+    /// the same bias, which is exactly the independence this chart is for.
+    ///
+    /// 50 is the axis, not the floor, so the domain is centred on it and the
+    /// reference lines mark the even point rather than a good/bad boundary.
+    private var hraCard: some View {
+        MetricChartCard(
+            title:    "Brake Bias",
+            technicalName: "Heart Rate Asymmetry (Guzik's Index)",
+            subtitle: "Which side of the rhythm does the work",
+            yLabel:   "%",
+            color:    Color(red: 0.45, green: 0.85, blue: 0.75),
+            windows:  TimeWindow.allCases,
+            refs: [
+                RefLine(value: 50, label: "50  even", color: Theme.dim),
+            ],
+            yDomain: 35...65,
+            win: window, selectedX: $sharedSelectedX, panOffset: $sharedPanOffset,
+            smooth: true,
+            dynamicY: true,
+            info: MetricInfo(
+                "Your heart does not slow and speed up in equal steps. This is the share of your beat-to-beat variation that comes from slowing down rather than speeding up \u{2014} the balance between the brake and the throttle, rather than the strength of either.",
+                calculation: "Guzik\u{2019}s Index: each beat-to-beat change is squared, and the ones where the heart slowed are taken as a percentage of all of them. Squaring is what makes it a share of variance rather than a count \u{2014} one large deceleration counts for more than several small ones.",
+                physical:    "Watch your pulse over a minute and it does not wobble evenly: the slowdowns and the speed-ups come in different sizes. This measures which of the two carries more of that wobble.",
+                physiology:  "A healthy heart is lopsided on purpose \u{2014} decelerations tend to carry slightly more than half the variance. The asymmetry appears to come from the vagus acting faster than sympathetic drive can. Losing it, and drifting toward a flat 50, is the pattern seen with age and with illness.",
+                training:    "Read it beside Vagal Tone and Throttle rather than alone. Those two say how much brake and throttle you have; this says which one is shaping your rhythm. It is a slow measure \u{2014} weeks, not sessions.",
+                sensitivity: "Needs at least 100 clean beats before it reports at all, and moves slowly after that. Distance from 50 is the signal; small wanders around it are noise.",
+                levels:      "Even:              50\nSlightly braked:   52\u{2013}56  (typical at rest)\nStrongly braked:   56+\nThrottle-led:      under 48\n\nRead the distance from 50, in either direction, rather than a target."
+            ),
+            history: history, rawHistory: rawHistory, date: date
+        ) { $0.hra.map(Double.init) }
+    }
+
+    // MARK: Rhythm Stability
+
+    /// The fragmentation dimension's other half. Inner Noise (PIP) counts how
+    /// often the rhythm changes direction; this counts how much of it is made
+    /// of very short runs \u{2014} the difference between a rhythm that wanders and
+    /// one that is chopped into pieces.
+    ///
+    /// Deliberately without reference lines. The literature\u{2019}s cut-offs are
+    /// for 24-hour Holter recordings and the source comment\u{2019}s "~62 %" could
+    /// not be verified, so drawing bands here would invent a threshold rather
+    /// than report one. Personal trend only, like VLF Power \u{2014} bands can be
+    /// added once there is enough stored history to know the real spread.
+    private var rhythmStabilityCard: some View {
+        MetricChartCard(
+            title:    "Rhythm Stability",
+            technicalName: "Percentage of Short Segments (PSS), inverted",
+            subtitle: "How much of the rhythm holds together",
+            yLabel:   "%",
+            color:    Color(red: 0.6, green: 0.75, blue: 1.0),
+            windows:  TimeWindow.allCases,
+            refs: [],
+            yDomain: 0...100,
+            win: window, selectedX: $sharedSelectedX, panOffset: $sharedPanOffset,
+            smooth: true,
+            dynamicY: true,
+            info: MetricInfo(
+                "How much of your heart rhythm runs in sustained stretches rather than being chopped into very short pieces. Higher means the rhythm holds a line; lower means it keeps breaking up.",
+                calculation: "The percentage of beats sitting in runs of two or fewer before the rhythm changes direction \u{2014} then flipped, so the number rises as the rhythm steadies. The published measure (PSS) counts the fragmentation itself and runs the other way.",
+                physical:    "Between changes of direction, your heart rate travels in short runs. This asks how long those runs are: a steady rhythm moves in long sweeps, a fragmented one in constant tiny reversals.",
+                physiology:  "Fragmentation is not the same thing as low variability, which is why it earns its own chart \u{2014} a rhythm can be wide and still be chopped up. It rises with age and with disease of the sinus node, and it is thought to reflect the pacemaker itself misbehaving rather than the nerves that steer it.",
+                training:    "Not something to chase in a session. Watch it across weeks, and read it beside Inner Noise \u{2014} the two describe the same dimension from different angles, and they should broadly agree.",
+                sensitivity: "Needs a couple of minutes of clean signal. Artifacts inflate fragmentation directly, so trust it least where the Signal Artifacts chart below is high.",
+                levels:      "No fixed bands \u{2014} the published cut-offs are for 24-hour recordings and do not transfer to a short window. Compare against your own trend under similar conditions.",
+                notes:       "Blank before this shipped: the value was computed and discarded until now, so no earlier history holds one."
+            ),
+            history: history, rawHistory: rawHistory, date: date
+        ) { $0.rhythmStability }
+    }
+
+    // MARK: QTVI
+
+    /// Repolarisation Stability — Berger's QT Variability Index.
+    ///
+    /// The only chart here that is not a transformation of the tachogram.
+    /// Every other card measures the sinus node — how the pacemaker is being
+    /// steered. This measures the ventricular muscle recovering between
+    /// beats, which is different tissue with different failure modes, and
+    /// QTVI is built to be the part heart-rate variability does *not*
+    /// explain: both variabilities are normalised by their own mean before
+    /// the ratio is taken.
+    ///
+    /// Plotted inverted, so the line rises as repolarisation gets steadier
+    /// and the card agrees with its own title. Raw QTVI runs the other way —
+    /// negative is healthy, around −1.5 to −1.9 in the literature — which is
+    /// why the axis is labelled and the info sheet gives the real numbers.
+    ///
+    /// Treat it as provisional. The H10 samples at 130 Hz where the QT
+    /// literature uses 500–1000 Hz, and T-wave end on a single bipolar chest
+    /// lead is the least certain landmark in electrocardiography. The
+    /// beat-to-beat *precision* the index actually depends on is tested; the
+    /// absolute calibration against clinical equipment is not, and cannot be
+    /// from this codebase.
+    private var qtviCard: some View {
+        MetricChartCard(
+            title:    "Repolarisation Stability",
+            technicalName: "QT Variability Index (QTVI), inverted",
+            subtitle: "How steadily the heart muscle resets",
+            yLabel:   "index",
+            color:    Color(red: 0.85, green: 0.6, blue: 0.95),
+            windows:  TimeWindow.allCases,
+            refs: [],
+            yDomain: -1...3,
+            win: window, selectedX: $sharedSelectedX, panOffset: $sharedPanOffset,
+            smooth: true,
+            dynamicY: true,
+            info: MetricInfo(
+                "Every heartbeat has two halves: the squeeze, and the electrical reset that readies the muscle for the next one. Every other chart here watches the squeeze being scheduled. This one watches the reset — and how much it wobbles from beat to beat.",
+                calculation: "Berger\u{2019}s QT Variability Index: the QT interval is measured on each beat from the raw ECG, and its variability is compared against heart-rate variability, each divided by the square of its own average. Because both sides are scaled that way, what is left is the wobble in the reset that changes in heart rate do not account for. Shown inverted, so higher is steadier.",
+                physical:    "After each beat your heart muscle has to recharge before it can beat again. That recharge takes a few tenths of a second, and it should take about the same time every beat. This measures how much that time drifts.",
+                physiology:  "This is the one measure here that is not about your nerves steering the pacemaker \u{2014} it is about the ventricular muscle itself. An unsteady reset is the pattern linked with arrhythmic risk, and it also rises with sustained sympathetic load, depression and anxiety, which is why it earns a place next to the autonomic charts rather than inside them.",
+                training:    "Not a dial to move in a session. It is a slow, whole-system marker: read it across weeks, and read a change as a question rather than an answer.",
+                sensitivity: "Needs a clean ECG and at least 32 delineated beats before it reports anything, and it rebuilds from scratch after the strap comes off. Movement is its enemy \u{2014} the T wave is small and easily buried.",
+                levels:      "Published QTVI values are negative, roughly \u{2212}1.9 (steady) to \u{2212}1.0 (unsteady), with values above \u{2212}1.0 considered abnormal. This chart plots the sign-flipped value, so 1.9 here is the steady end and 1.0 the unsteady one.",
+                notes:       "Provisional. The strap samples at 130 Hz where the QT literature uses 500\u{2013}1000 Hz, so absolute values are not comparable with a clinical recording \u{2014} compare only against your own trend. Blank before this shipped, and blank on any window the ECG stream was not running."
+            ),
+            history: history, rawHistory: rawHistory, date: date
+        ) { $0.qtvi.map { -Double($0) } }
     }
 
     // MARK: Breath Rate

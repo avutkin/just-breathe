@@ -26,6 +26,96 @@ final class SleepDetectorTests: XCTestCase {
         }
     }
 
+    /// A night with live sessions either side of it, at the cadences the app
+    /// actually records at.
+    ///
+    /// This is the shape that lost a real night. The app ticks every few
+    /// seconds while a session is running and every 30 s in the background, so
+    /// 88 minutes of meditation either side of eight hours of sleep supplied
+    /// 61.5% of the run's samples. Every gate in the detector is relative to
+    /// "this recording's own median", and a median over samples is a median
+    /// over whatever produced the most ticks — the meditation, not the sleep.
+    private func nightBetweenSessions(sleepMotion: Float = 4,
+                                      awakeMotion: Float = 50,
+                                      day: Int = 20) -> [MetricsHistoryPoint] {
+        // 21:40 evening session, 23:00 asleep, 07:00 morning session, 08:30 off.
+        evening(day: day, motion: awakeMotion)
+            + night(fromHour: 23, hours: 8, day: day, motion: sleepMotion, hr: 57)
+            + morning(day: day + 1, motion: awakeMotion)
+    }
+
+    private func evening(day: Int, motion: Float) -> [MetricsHistoryPoint] {
+        night(fromHour: 21, fromMinute: 40, hours: 1.33, day: day,
+              motion: motion, hr: 85, spacing: 5)
+    }
+
+    private func morning(day: Int, motion: Float) -> [MetricsHistoryPoint] {
+        night(fromHour: 7, hours: 1.5, day: day, motion: motion, hr: 70, spacing: 5)
+    }
+
+    // MARK: - Baselines are per minute, not per sample
+
+    /// The regression this whole section exists for: a real night that scored
+    /// nothing because the awake blocks around it out-voted it on sample count.
+    ///
+    /// With the median taken over samples, the run's median motion IS the
+    /// meditation's motion, which is over `impossibleSleepMotion`, and
+    /// `trimmedToSleep` discards the entire run — no night, no boundaries,
+    /// nothing shown to the sleeper.
+    func testNightSurvivesDenseAwakeSessionsEitherSideOfIt() {
+        let points = nightBetweenSessions()
+        let w = SleepDetector.detect(points)
+
+        XCTAssertNotNil(w, "eight hours of quiet sleep is a night whatever surrounds it")
+        XCTAssertEqual(w?.durationSec ?? 0, 8 * 3600, accuracy: 20 * 60,
+                       "the night is the sleep, not the sleep plus the sessions")
+        let cal = Calendar.current
+        XCTAssertEqual(cal.component(.hour, from: w?.startedAt ?? .distantPast), 23,
+                       "onset is where the sleep starts, not where the strap went on")
+        // The sleep block's last tick is 06:59:30, so the night ends there and
+        // not at 08:30 where the recording does.
+        let expectedEnd = cal.date(from: DateComponents(year: 2026, month: 7, day: 21, hour: 7))!
+        XCTAssertEqual(w?.endedAt.timeIntervalSince(expectedEnd) ?? .infinity, 0, accuracy: 15 * 60,
+                       "the night ends at the final awakening, not at the end of the recording")
+    }
+
+    /// The veto has to keep working for what it is actually for — a run that is
+    /// genuinely thrashing throughout is not sleep, however long it is.
+    func testAGenuinelyRestlessRunIsStillRejected() {
+        XCTAssertNil(SleepDetector.detect(night(fromHour: 23, hours: 8, motion: 90)),
+                     "40 mg is a floor on the sleeping level, and this run has no quiet in it")
+    }
+
+    /// Sampling density must not move the answer. The same night, recorded at a
+    /// steady background cadence, is the same night.
+    func testTheAnswerDoesNotDependOnSamplingDensity() {
+        let dense = SleepDetector.detect(nightBetweenSessions())
+        let even = SleepDetector.detect(
+            night(fromHour: 21, fromMinute: 40, hours: 1.33, motion: 50, hr: 85)
+                + night(fromHour: 23, hours: 8, motion: 4, hr: 57)
+                + night(fromHour: 7, hours: 1.5, day: 21, motion: 50, hr: 70))
+        XCTAssertNotNil(dense)
+        XCTAssertNotNil(even)
+        XCTAssertEqual(dense?.durationSec ?? 0, even?.durationSec ?? -1, accuracy: 15 * 60,
+                       "the same night sampled two ways must not be two different nights")
+    }
+
+    // MARK: - Wake bouts belong to the night they interrupt
+
+    /// A wake in the middle of the night is part of that night. Ending the
+    /// record at it reports the first half and throws the rest away.
+    func testAnInteriorWakeStaysInsideTheNight() {
+        let points = night(fromHour: 23, hours: 3, motion: 4, hr: 57)
+            + night(fromHour: 2, hours: 0.33, day: 21, motion: 20, hr: 74)   // 20 min awake
+            + night(fromHour: 2, fromMinute: 20, hours: 4.6, day: 21, motion: 4, hr: 57)
+        let w = SleepDetector.detect(points)
+
+        XCTAssertNotNil(w)
+        XCTAssertEqual(Calendar.current.component(.hour, from: w?.startedAt ?? .distantPast), 23)
+        XCTAssertEqual(w?.durationSec ?? 0, 8 * 3600, accuracy: 20 * 60,
+                       "23:00 to 07:00 including the bout, not 23:00 to 02:00")
+    }
+
     // MARK: - The window
 
     func testFindsOvernightWindowSpanningMidnight() {

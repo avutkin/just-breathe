@@ -124,18 +124,17 @@ enum SleepStages {
         let lfHF: Float
         let sdnn: Float
 
+        /// Per minute, not per sample. A live session ticks several times a
+        /// second where the background ticks twice a minute, so a median over
+        /// samples is calibrated to whichever the recording did most *ticks* of
+        /// — and an hour of session then outweighs a night of sleep. See
+        /// `TimeWeightedMedian`.
         init(_ points: [MetricsHistoryPoint]) {
-            motion = Self.median(points.compactMap(\.motion)) ?? 0
-            hr = Self.median(points.compactMap(\.meanBPM)) ?? 0
-            coherence = Self.median(points.compactMap(\.coherence)) ?? 0
-            lfHF = Self.median(points.compactMap(\.lfHF)) ?? 0
-            sdnn = Self.median(points.compactMap(\.sdnn)) ?? 0
-        }
-
-        private static func median(_ v: [Float]) -> Float? {
-            guard !v.isEmpty else { return nil }
-            let s = v.sorted()
-            return s[s.count / 2]
+            motion = TimeWeightedMedian.of(points) { $0.motion } ?? 0
+            hr = TimeWeightedMedian.of(points) { $0.meanBPM } ?? 0
+            coherence = TimeWeightedMedian.of(points) { $0.coherence } ?? 0
+            lfHF = TimeWeightedMedian.of(points) { $0.lfHF } ?? 0
+            sdnn = TimeWeightedMedian.of(points) { $0.sdnn } ?? 0
         }
     }
 
