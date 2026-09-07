@@ -85,7 +85,7 @@ async def test_stats_shape():
     row = data["users"][0]
     assert set(row) >= {
         "id", "device_id", "display_name", "first_seen", "last_seen",
-        "session_count", "total_minutes", "avg_coherence", "avg_rsa",
+        "session_count", "total_minutes", "avg_coherence", "avg_rsa", "avg_pip",
     }
 
     u = next(x for x in data["users"] if x["session_count"] >= 1)

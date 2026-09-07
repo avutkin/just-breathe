@@ -465,6 +465,9 @@
     { k: "total_minutes", label: "Minutes", cell: (u) => fmt(u.total_minutes, 0) },
     { k: "avg_coherence", label: "Avg coh", cell: (u) => u.avg_coherence == null ? "—" : fmt(u.avg_coherence, 2) },
     { k: "avg_rsa", label: "Avg RSA", cell: (u) => u.avg_rsa == null ? "—" : fmt(u.avg_rsa, 1) },
+    // Inner Noise (PIP, %): lower is calmer, so it is the one column where a
+    // small number is the good one.
+    { k: "avg_pip", label: "Inner noise", cell: (u) => u.avg_pip == null ? "—" : fmt(u.avg_pip, 0) },
     { k: null, label: "", cell: () => `<span class="chev">›</span>` },
   ];
   const fullName = (u) => [u.first_name, u.last_name].filter(Boolean).join(" ") || null;
