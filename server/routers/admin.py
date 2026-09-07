@@ -10,6 +10,7 @@ GET /admin/sessions/{id}/export  — CSV download
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import io
 from datetime import date, datetime, timedelta, timezone
@@ -57,6 +58,12 @@ def _range_window(rng: str, off: timedelta) -> tuple[datetime | None, str]:
 _DASHBOARD_HTML = (
     Path(__file__).resolve().parent.parent / "templates" / "dashboard.html"
 ).read_text(encoding="utf-8")
+# The version an open tab compares against: a digest of the template itself,
+# so it changes exactly when the page does. Stamped into the page and sent as
+# a header on every /admin response (see main.py); a tab that sees a different
+# one reloads.
+DASHBOARD_VERSION = hashlib.sha1(_DASHBOARD_HTML.encode("utf-8")).hexdigest()[:12]
+_DASHBOARD_HTML = _DASHBOARD_HTML.replace("__DASHBOARD_VERSION__", DASHBOARD_VERSION)
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -64,7 +71,8 @@ async def dashboard_page() -> HTMLResponse:
     # The page carries its own JS, so without this browsers heuristically cache
     # it and keep running a previous deploy's dashboard against the new API —
     # which looks exactly like the deploy not having happened.
-    return HTMLResponse(_DASHBOARD_HTML, headers={"Cache-Control": "no-store, must-revalidate"})
+    return HTMLResponse(_DASHBOARD_HTML, headers={"Cache-Control": "no-store, must-revalidate",
+                                                 "X-Dashboard-Version": DASHBOARD_VERSION})
 
 
 @router.get("/stats")

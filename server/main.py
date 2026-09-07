@@ -83,7 +83,13 @@ async def api_key_gate(request: Request, call_next):
     # configured — see server/auth.py).
     if not key_ok(request.headers.get("x-api-key")):
         return JSONResponse({"detail": "unauthorized"}, status_code=401)
-    return await call_next(request)
+    response = await call_next(request)
+    # Every admin response says which dashboard the server is serving, so an
+    # open tab — which only ever fetches data, never the page — notices a
+    # deploy and reloads itself instead of drawing old columns from new data.
+    if path.startswith("/admin"):
+        response.headers["X-Dashboard-Version"] = admin.DASHBOARD_VERSION
+    return response
 
 
 app.include_router(sessions.router)

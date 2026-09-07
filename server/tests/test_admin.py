@@ -723,3 +723,21 @@ async def test_activity_series_spans_the_window():
     async with _client() as client:
         nf = await client.get("/admin/activities/00000000-0000-0000-0000-0000000000fe/series")
     assert nf.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_an_open_tab_can_tell_the_dashboard_changed():
+    """The page carries its own version and every admin response says which
+    version the server serves; the two agree, so a tab that sees a different
+    header knows to reload. The version is a digest of the template, so it
+    moves exactly when the page does."""
+    from server.routers.admin import DASHBOARD_VERSION
+    async with _client() as client:
+        page = await client.get("/admin/dashboard")
+        stats = await client.get("/admin/stats", params={"range": "24h"})
+    assert page.status_code == 200
+    assert f'const DASHBOARD_VERSION = "{DASHBOARD_VERSION}"' in page.text
+    assert "__DASHBOARD_VERSION__" not in page.text
+    assert page.headers["x-dashboard-version"] == DASHBOARD_VERSION
+    assert stats.headers["x-dashboard-version"] == DASHBOARD_VERSION
+    assert len(DASHBOARD_VERSION) == 12
