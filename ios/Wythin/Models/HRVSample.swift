@@ -93,15 +93,20 @@ final class HRVSample {
         self.hfPower    = tick.hfPower
     }
 
-    /// Restore initializer: exactly the fourteen fields continuous sync
-    /// uploads, so a cloud read-back round-trips to the same shape it left in.
-    /// Everything sync never carried (powers, quality, motion…) stays nil —
-    /// restored history is chart-and-baseline grade, not raw-signal grade.
+    /// Restore initializer: exactly the fields continuous sync uploads, so a
+    /// cloud read-back round-trips to the same shape it left in. Everything
+    /// sync never carried (powers, quality, position…) stays nil — restored
+    /// history is chart-and-baseline grade, not raw-signal grade.
+    ///
+    /// `motion` is the exception, and defaults to nil so a page uploaded before
+    /// it was carried still restores. It is here because the sleep pipeline
+    /// cannot be reproduced without it: a restored night missing motion scores
+    /// differently from the night the device actually recorded.
     init(cloudTs: Date,
          meanBPM: Float?, rmssd: Float?, sdnn: Float?, pnn50: Float?,
          lfHF: Float?, rsaMs: Float?, coherence: Float?, cbi: Float?,
          breathBPM: Float?, dfa1: Float?, rcmse: Float?, pip: Float?,
-         dc: Float?, vti: Float?) {
+         dc: Float?, vti: Float?, motion: Float? = nil) {
         self.timestamp = cloudTs
         self.meanBPM   = meanBPM
         self.rmssd     = rmssd
@@ -117,12 +122,13 @@ final class HRVSample {
         self.pip       = pip
         self.dc        = dc
         self.vti       = vti
+        self.motion    = motion
 
         self.ac = nil
         self.rsaIdx = nil; self.ieRatio = nil; self.signalQuality = nil
         self.breathSourceRaw = nil
         self.rrInvalidRate = nil; self.rrCorrectedRate = nil; self.ecgQualityTier = nil
-        self.ials = nil; self.motion = nil
+        self.ials = nil
         self.pss = nil; self.hra = nil; self.qtvi = nil
         self.bodyPositionRaw = nil; self.positionConfidence = nil
         self.ulfPower = nil; self.vlfPower = nil; self.lfPower = nil; self.hfPower = nil

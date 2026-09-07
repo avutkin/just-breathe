@@ -101,3 +101,43 @@ async def test_export_pages_in_order_and_is_scoped():
         p2 = r2.json()
         assert [s["pip"] for s in p2["samples"]] == [32.0]
         assert p2["next_cursor"] is None
+
+
+@pytest.mark.asyncio
+async def test_motion_round_trips_through_upload_and_export():
+    """Motion is the channel the sleep pipeline leans on hardest, and until
+    2026-09-06 it never left the phone — so a night that scored wrong could
+    only be examined with the device in hand, and `tools/profile_night.py`
+    could not reproduce what the device did. It has to survive the round trip
+    or the tooling is back to guessing."""
+    import uuid
+    device = f"ms-motion-{uuid.uuid4().hex[:8]}"
+    async with _client() as c:
+        r = await c.post("/v1/metrics", headers={"X-User-ID": device}, json={"samples": [
+            {"ts": "2026-09-06T04:00:00Z", "mean_bpm": 57.0, "motion": 3.9},   # asleep
+            {"ts": "2026-09-06T05:00:00Z", "mean_bpm": 88.0, "motion": 61.2},  # moving
+            {"ts": "2026-09-06T06:00:00Z", "mean_bpm": 60.0},                  # no motion carried
+        ]})
+        assert r.status_code == 200, r.text
+        assert r.json()["stored"] == 3
+
+        page = (await c.get("/v1/metrics/export", headers={"X-User-ID": device})).json()
+        motions = [s["motion"] for s in page["samples"]]
+        assert motions[0] == pytest.approx(3.9, abs=0.01)
+        assert motions[1] == pytest.approx(61.2, abs=0.01)
+        assert motions[2] is None, "a sample that carried no motion stays null, not zero"
+
+
+@pytest.mark.asyncio
+async def test_a_sample_carrying_only_motion_is_still_a_reading():
+    """Motion counts as a metric for the valueless-sample filter. Without it a
+    tick that measured stillness and nothing else would be dropped at ingest as
+    an empty timestamp — and stillness is exactly what a sleeping body reports."""
+    import uuid
+    device = f"ms-motion-only-{uuid.uuid4().hex[:8]}"
+    async with _client() as c:
+        r = await c.post("/v1/metrics", headers={"X-User-ID": device}, json={"samples": [
+            {"ts": "2026-09-06T04:00:00Z", "motion": 4.1},
+        ]})
+        assert r.status_code == 200, r.text
+        assert r.json()["stored"] == 1
