@@ -1036,19 +1036,19 @@
     const motion = pts.filter(s => s.motion_max != null && isFinite(s.motion_max))
                       .map(s => ({ t: new Date(s.ts).getTime(), avg: s.motion, max: s.motion_max }))
                       .filter(p => p.t >= x0 && p.t <= x1);
-    el += laneHead(y, "Movement", "accelerometer", "");
     const MH = 28;
+    const meds = motion.map(p => p.avg).filter(v => v != null).sort((p, q) => p - q);
+    const threshold = Math.max((meds[Math.floor(meds.length / 2)] || 0) * 2, 8);
+    const loud = motion.filter(p => p.max > threshold);
+    el += laneHead(y, "Movement", "accelerometer", motion.length ? `${loud.length} moves` : "");
     if (motion.length) {
-      const meds = motion.map(p => p.avg).filter(v => v != null).sort((p, q) => p - q);
-      const threshold = Math.max((meds[Math.floor(meds.length / 2)] || 0) * 2, 8);
-      const loud = motion.filter(p => p.max > threshold);
       el += shadeWake(y, MH);
       el += `<line class="grid" x1="${L}" y1="${y + MH}" x2="${W - R}" y2="${y + MH}"/>`;
       loud.forEach(p => {
         const h = Math.max(3, Math.min(1, p.max / (threshold * 4)) * (MH - 4));
         el += `<rect x="${(px(p.t) - 1).toFixed(1)}" y="${(y + MH - h).toFixed(1)}" width="2" height="${h.toFixed(1)}" fill="var(--dim)" opacity=".8"/>`;
       });
-      el += `<text class="clock" x="${W - R}" y="${y + 10}" text-anchor="end">${loud.length} moves · over ${threshold.toFixed(0)} mg</text>`;
+      el += `<text class="clock" x="${W - R}" y="${y - 3}" text-anchor="end">over ${threshold.toFixed(0)} mg</text>`;
     } else {
       el += `<text class="clock" x="${L}" y="${y + 17}">movement is not in this phone's synced ticks yet — it syncs from the current app build</text>`;
     }
