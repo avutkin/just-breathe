@@ -122,6 +122,18 @@ struct SleepUploadPayload: Codable {
     let positionBands:      [SleepNightDetail.PositionBand]?
     let stageRuns:          [SleepNightDetail.Run]?
 
+    /// The pair that makes a night a labelled example: what the detector
+    /// proposed, and the fact that the sleeper moved it. Both nil for a night
+    /// nobody corrected — which is most of them, and is itself informative.
+    ///
+    /// The corrected boundaries are already the row's `started_at`/`ended_at`,
+    /// because the app rebuilds a corrected night and re-uploads it. Only the
+    /// detector's original answer was being thrown away, and without it the
+    /// error is unmeasurable.
+    let detectedStart: String?
+    let detectedEnd:   String?
+    let correctedAt:   String?
+
     enum CodingKeys: String, CodingKey {
         case score, arithmetic, regularity, sections, stages, positions
         case stageSummary       = "stage_summary"
@@ -132,6 +144,9 @@ struct SleepUploadPayload: Codable {
         case wakeBouts          = "wake_bouts"
         case longestUnbrokenMin = "longest_unbroken_min"
         case longestWakeMin     = "longest_wake_min"
+        case detectedStart      = "detected_start"
+        case detectedEnd        = "detected_end"
+        case correctedAt        = "corrected_at"
         case lowestHR           = "lowest_hr"
         case lowestHRAt         = "lowest_hr_at"
         case positionRecorded   = "position_recorded"
@@ -156,6 +171,10 @@ struct SleepUploadPayload: Codable {
                             breathing: e.sleepBreathing)
         stages = Stages(wake: e.sleepAwakeMinutes, rem: e.sleepREMMinutes, n1: e.sleepN1Minutes,
                         n2: e.sleepLightMinutes, n3: e.sleepDeepMinutes)
+        let iso = ISO8601DateFormatter()
+        detectedStart = e.sleepDetectedStart.map { iso.string(from: $0) }
+        detectedEnd   = e.sleepDetectedEnd.map { iso.string(from: $0) }
+        correctedAt   = e.sleepCorrectedAt.map { iso.string(from: $0) }
         wakeBouts          = detail?.wakeBouts
         longestUnbrokenMin = detail?.longestUnbrokenMin
         longestWakeMin     = detail?.longestWakeMin
