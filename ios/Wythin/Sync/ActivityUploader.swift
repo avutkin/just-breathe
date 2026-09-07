@@ -17,6 +17,8 @@ struct ActivityUploadPayload: Codable {
     let isManual:        Bool
     let impactDeltaPct:  Float?
     let notes:           String?
+    /// The night, for a `Sleep` row; nil for everything else.
+    let sleep:           SleepUploadPayload?
 
     let beforeHR: Float?;     let duringHR: Float?;     let afterHR: Float?
     let beforeRMSSD: Float?;  let duringRMSSD: Float?;  let afterRMSSD: Float?
@@ -40,7 +42,7 @@ struct ActivityUploadPayload: Codable {
         case endedAt         = "ended_at"
         case isManual        = "is_manual"
         case impactDeltaPct  = "impact_delta_pct"
-        case notes
+        case notes, sleep
         case beforeHR = "before_hr",         duringHR = "during_hr",         afterHR = "after_hr"
         case beforeRMSSD = "before_rmssd",   duringRMSSD = "during_rmssd",   afterRMSSD = "after_rmssd"
         case beforeSDNN = "before_sdnn",     duringSDNN = "during_sdnn",     afterSDNN = "after_sdnn"
@@ -66,6 +68,7 @@ struct ActivityUploadPayload: Codable {
         isManual        = e.isManual
         impactDeltaPct  = e.impactDeltaPct.map(Float.init)
         notes           = e.notes
+        sleep           = SleepUploadPayload(from: e)
         beforeHR = e.beforeHR;         duringHR = e.duringHR;         afterHR = e.afterHR
         beforeRMSSD = e.beforeRMSSD;   duringRMSSD = e.duringRMSSD;   afterRMSSD = e.afterRMSSD
         beforeSDNN = e.beforeSDNN;     duringSDNN = e.duringSDNN;     afterSDNN = e.afterSDNN
@@ -78,6 +81,141 @@ struct ActivityUploadPayload: Codable {
         beforeDC = e.beforeDC;         duringDC = e.duringDC;         afterDC = e.afterDC
         beforeDFA1 = e.beforeDFA1;     duringDFA1 = e.duringDFA1;     afterDFA1 = e.afterDFA1
         beforeBreath = e.beforeBreath; duringBreath = e.duringBreath; afterBreath = e.afterBreath
+    }
+}
+
+// MARK: - SleepUploadPayload
+
+/// A recorded night on the wire, inside the activity upload.
+///
+/// The row's own sleep columns plus `SleepNightDetail`, flattened into one
+/// object under the insight payload's names. Absent sections stay absent —
+/// "not measured" and "scored 0" are different sentences, and the server
+/// stores this as uploaded.
+struct SleepUploadPayload: Codable {
+    struct Sections: Codable {
+        let timing: Int?; let duration: Int?; let continuity: Int?
+        let autonomic: Int?; let breathing: Int?
+    }
+    struct Stages: Codable {
+        let wake: Int?; let rem: Int?; let n1: Int?; let n2: Int?; let n3: Int?
+    }
+
+    let score:            Int?
+    let arithmetic:       String?
+    let stageSummary:     String?
+    let asleepMin:        Int?
+    let inBedMin:         Int?
+    let regularity:       Float?
+    let algorithmVersion: Int?
+    let readText:         String?
+    let sections:         Sections
+    let stages:           Stages
+
+    let wakeBouts:          Int?
+    let longestUnbrokenMin: Int?
+    let longestWakeMin:     Int?
+    let lowestHR:           Double?
+    let lowestHRAt:         String?
+    let positionRecorded:   Bool?
+    let positions:          [SleepNightDetail.PositionShare]?
+    let positionBands:      [SleepNightDetail.PositionBand]?
+    let stageRuns:          [SleepNightDetail.Run]?
+
+    enum CodingKeys: String, CodingKey {
+        case score, arithmetic, regularity, sections, stages, positions
+        case stageSummary       = "stage_summary"
+        case asleepMin          = "asleep_min"
+        case inBedMin           = "in_bed_min"
+        case algorithmVersion   = "algorithm_version"
+        case readText           = "read_text"
+        case wakeBouts          = "wake_bouts"
+        case longestUnbrokenMin = "longest_unbroken_min"
+        case longestWakeMin     = "longest_wake_min"
+        case lowestHR           = "lowest_hr"
+        case lowestHRAt         = "lowest_hr_at"
+        case positionRecorded   = "position_recorded"
+        case positionBands      = "position_bands"
+        case stageRuns          = "stage_runs"
+    }
+
+    /// Nil unless the entry is a night.
+    init?(from e: ActivityLog) {
+        guard e.activityType == ActivityType.sleep.rawValue else { return nil }
+        let detail = SleepNightDetail(json: e.sleepDetailJSON)
+        score            = e.sleepScore
+        arithmetic       = e.sleepScoreArithmetic
+        stageSummary     = e.sleepStageSummary
+        asleepMin        = e.sleepAsleepMinutes
+        inBedMin         = e.endedAt.map { Int($0.timeIntervalSince(e.startedAt) / 60) }
+        regularity       = e.sleepRegularity
+        algorithmVersion = e.sleepAlgorithmVersion
+        readText         = e.sleepReadText
+        sections = Sections(timing: e.sleepTiming, duration: e.sleepDuration,
+                            continuity: e.sleepContinuity, autonomic: e.sleepAutonomic,
+                            breathing: e.sleepBreathing)
+        stages = Stages(wake: e.sleepAwakeMinutes, rem: e.sleepREMMinutes, n1: e.sleepN1Minutes,
+                        n2: e.sleepLightMinutes, n3: e.sleepDeepMinutes)
+        wakeBouts          = detail?.wakeBouts
+        longestUnbrokenMin = detail?.longestUnbrokenMin
+        longestWakeMin     = detail?.longestWakeMin
+        lowestHR           = detail?.lowestHR
+        lowestHRAt         = detail?.lowestHRAt
+        positionRecorded   = detail?.positionRecorded
+        positions          = detail?.positions
+        positionBands      = detail?.positionBands
+        stageRuns          = detail?.stageRuns
+    }
+
+    /// The row's fields, back from the wire — for a restore into an empty
+    /// store. The detail goes back as the JSON it came from.
+    func apply(to e: ActivityLog) {
+        e.sleepScore           = score
+        e.sleepScoreArithmetic = arithmetic
+        e.sleepStageSummary    = stageSummary
+        e.sleepAsleepMinutes   = asleepMin
+        e.sleepRegularity      = regularity
+        e.sleepAlgorithmVersion = algorithmVersion
+        e.sleepReadText        = readText
+        e.sleepTiming = sections.timing; e.sleepDuration = sections.duration
+        e.sleepContinuity = sections.continuity; e.sleepAutonomic = sections.autonomic
+        e.sleepBreathing = sections.breathing
+        e.sleepAwakeMinutes = stages.wake; e.sleepREMMinutes = stages.rem; e.sleepN1Minutes = stages.n1
+        e.sleepLightMinutes = stages.n2;   e.sleepDeepMinutes = stages.n3
+        if let wakeBouts, let longestUnbrokenMin, let longestWakeMin, let positionRecorded {
+            let detail = SleepNightDetail(
+                wakeBouts: wakeBouts, longestUnbrokenMin: longestUnbrokenMin,
+                longestWakeMin: longestWakeMin, lowestHR: lowestHR, lowestHRAt: lowestHRAt,
+                positionRecorded: positionRecorded, positions: positions ?? [],
+                positionBands: positionBands ?? [], stageRuns: stageRuns ?? [])
+            e.sleepDetailJSON = detail.json
+        }
+    }
+}
+
+// MARK: - ActivityUploadWatermark
+
+/// The uploader's "everything that ended before this has been sent" mark.
+///
+/// Its own type, not on the actor: the sleep recorder needs to move it from a
+/// background context, and `UserDefaults` is safe to touch from anywhere.
+enum ActivityUploadWatermark {
+    static let key = "activities.lastUploadedEndedAt"
+
+    static var value: Date {
+        (UserDefaults.standard.object(forKey: key) as? Date) ?? .distantPast
+    }
+
+    static func advance(to date: Date) {
+        UserDefaults.standard.set(date, forKey: key)
+    }
+
+    /// Pull the mark back so a row that ended at `date` is sent again. A
+    /// no-op when the mark is already behind it.
+    static func rewind(before date: Date) {
+        let moved = date.addingTimeInterval(-1)
+        guard moved < value else { return }
+        UserDefaults.standard.set(moved, forKey: key)
     }
 }
 
@@ -98,7 +236,6 @@ final class ActivityUploader {
 
     private let client: APIClient
     private let userID: String
-    private let watermarkKey = "activities.lastUploadedEndedAt"
 
     init(client: APIClient, userID: String) {
         self.client = client
@@ -106,7 +243,7 @@ final class ActivityUploader {
     }
 
     func flushPending(context: ModelContext) async {
-        let since = (UserDefaults.standard.object(forKey: watermarkKey) as? Date) ?? .distantPast
+        let since = ActivityUploadWatermark.value
 
         // Fetch all and filter in Swift — keeps the SwiftData predicate simple
         // and the volume is small (one row per logged activity).
@@ -128,7 +265,7 @@ final class ActivityUploader {
             }
         }
         if maxEnded > since {
-            UserDefaults.standard.set(maxEnded, forKey: watermarkKey)
+            ActivityUploadWatermark.advance(to: maxEnded)
         }
     }
 }

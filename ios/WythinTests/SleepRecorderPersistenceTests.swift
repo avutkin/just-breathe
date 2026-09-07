@@ -242,4 +242,35 @@ final class SleepRecorderPersistenceTests: XCTestCase {
         XCTAssertNotEqual(logs.first?.sleepAsleepMinutes, 999,
                           "this is the stale row, not a rebuilt one")
     }
+
+    // MARK: - The rest of the night is stored with it
+
+    func testARecordedNightCarriesItsDetailAndReopensTheUpload() {
+        let writer = ModelContext(container)
+        seedNight(writer, day: 22)
+        // The strap knew the orientation for the first half of the night.
+        let samples = (try? writer.fetch(FetchDescriptor<HRVSample>(sortBy: [SortDescriptor(\.timestamp)]))) ?? []
+        for s in samples.prefix(samples.count / 2) { s.bodyPositionRaw = BodyPosition.supine.rawValue }
+        try! writer.save()
+        // The uploader believes everything up to next week has been sent.
+        ActivityUploadWatermark.advance(to: at(28, 12))
+
+        SleepRecorder.recordIfDue(context: writer, now: at(23, 8))
+
+        let reader = ModelContext(container)
+        guard let night = sleepLogs(in: reader).first else { return XCTFail("no night recorded") }
+        guard let detail = SleepNightDetail(json: night.sleepDetailJSON) else {
+            return XCTFail("the night carries no detail")
+        }
+        XCTAssertFalse(detail.stageRuns.isEmpty, "the hypnogram travels as runs")
+        XCTAssertEqual(detail.stageRuns.first?.start,
+                       ISO8601DateFormatter().string(from: night.startedAt),
+                       "the first run starts where the night starts")
+        XCTAssertTrue(detail.positionRecorded)
+        XCTAssertEqual(detail.positions.first?.position, "Supine")
+        XCTAssertGreaterThan(detail.positions.first?.minutes ?? 0, 60)
+        XCTAssertNotNil(detail.lowestHR, "a night with heart rate has a nadir")
+        XCTAssertLessThan(ActivityUploadWatermark.value, night.endedAt!,
+                          "a rebuilt night must be sent, so the mark moves back behind it")
+    }
 }

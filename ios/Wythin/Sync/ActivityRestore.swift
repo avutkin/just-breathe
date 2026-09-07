@@ -81,6 +81,12 @@ enum ActivityRestore {
         entry.beforeDFA1 = p.beforeDFA1;     entry.duringDFA1 = p.duringDFA1;     entry.afterDFA1 = p.afterDFA1
         entry.beforeBreath = p.beforeBreath; entry.duringBreath = p.duringBreath; entry.afterBreath = p.afterBreath
 
+        // A night is the exception to "leave derived fields for the backfill":
+        // the recorder rebuilds nights from the tick stream, and a restored
+        // stream has no motion and no body position, so a rebuilt night would
+        // be a worse one. The server's copy is the app's own, version and all.
+        p.sleep?.apply(to: entry)
+
         return entry
     }
 

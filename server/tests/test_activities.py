@@ -168,3 +168,91 @@ async def test_an_upload_without_breath_rate_is_still_accepted():
         assert row["before_breath"] is None
         assert row["during_breath"] is None
         assert row["after_breath"] is None
+
+
+# ── Nights ───────────────────────────────────────────────────────────────
+
+_NIGHT = {
+    "score": 72,
+    "arithmetic": "72 = 25%·65 + 25%·80 + 15%·60 + 20%·75 + 15%·70",
+    "stage_summary": "6h 02m quiet · 1h 20m active · 0h 30m awake",
+    "asleep_min": 442, "in_bed_min": 472, "regularity": 81.0, "algorithm_version": 13,
+    "sections": {"timing": 65, "duration": 80, "continuity": 60, "autonomic": 75, "breathing": 70},
+    "stages": {"wake": 30, "rem": 90, "n1": 40, "n2": 240, "n3": 72},
+    "wake_bouts": 3, "longest_wake_min": 12,
+    "lowest_hr": 47.0, "lowest_hr_at": "2025-04-02T03:10:00Z",
+    "position_recorded": True,
+    "positions": [{"position": "Left side", "minutes": 250}, {"position": "Supine", "minutes": 180}],
+    "position_bands": [{"position": "Left side", "start": "2025-04-01T23:00:00Z", "end": "2025-04-02T03:10:00Z"}],
+    "stage_runs": [{"stage": "n2", "start": "2025-04-01T23:00:00Z", "end": "2025-04-02T00:00:00Z"}],
+}
+
+
+def _night(cid, start, end, **extra):
+    body = {"id": cid, "activity_type": "Sleep", "started_at": start, "ended_at": end,
+            "is_manual": False, "sleep": dict(_NIGHT, **extra)}
+    return body
+
+
+@pytest.mark.asyncio
+async def test_a_night_round_trips_its_sleep_block():
+    """The app's night — score, sections, stages, positions, hypnogram — is
+    stored as uploaded and comes back on the detail and on the user's list."""
+    dev = "test-night-user-a"
+    body = _night("00000000-0000-0000-0000-0000000000d1", "2025-04-01T23:00:00Z", "2025-04-02T06:52:00Z")
+    async with _client() as client:
+        up = await client.post("/activities", json=body, headers={"X-User-ID": dev})
+        assert up.status_code == 200, up.text
+        detail = (await client.get(f"/admin/activities/{up.json()['id']}")).json()
+        listed = await _user_activities(client, dev)
+    assert detail["sleep"] == _NIGHT
+    assert detail["impact"]["class"] == "restorative"
+    mine = next(a for a in listed if a["id"] == up.json()["id"])
+    assert mine["sleep"]["score"] == 72
+
+
+@pytest.mark.asyncio
+async def test_an_activity_without_a_sleep_block_stores_null():
+    async with _client() as client:
+        up = await client.post("/activities", json=_PAYLOAD, headers={"X-User-ID": "test-activity-user"})
+        detail = (await client.get(f"/admin/activities/{up.json()['id']}")).json()
+    assert detail["sleep"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_rebuilt_night_replaces_the_one_it_overlaps():
+    """The app purges and re-records nights on an algorithm bump or a
+    correction, under a new id. One night per window: the newcomer deletes
+    any Sleep row of the same user whose window overlaps it, and nothing
+    else — a night on another date, or another user's night, stays."""
+    dev, other = "test-night-user-b", "test-night-user-c"
+    old   = _night("00000000-0000-0000-0000-0000000000d2", "2025-05-01T23:00:00Z", "2025-05-02T06:30:00Z", algorithm_version=12)
+    new   = _night("00000000-0000-0000-0000-0000000000d3", "2025-05-01T23:20:00Z", "2025-05-02T06:45:00Z", algorithm_version=13)
+    apart = _night("00000000-0000-0000-0000-0000000000d4", "2025-05-02T23:00:00Z", "2025-05-03T06:30:00Z")
+    theirs = _night("00000000-0000-0000-0000-0000000000d5", "2025-05-01T23:00:00Z", "2025-05-02T06:30:00Z")
+    async with _client() as client:
+        for body, who in ((old, dev), (apart, dev), (theirs, other)):
+            assert (await client.post("/activities", json=body, headers={"X-User-ID": who})).status_code == 200
+        assert (await client.post("/activities", json=new, headers={"X-User-ID": dev})).status_code == 200
+        mine = await _user_activities(client, dev)
+        others = await _user_activities(client, other)
+    ids = {a["client_activity_id"] for a in mine}
+    assert new["id"] in ids and apart["id"] in ids
+    assert old["id"] not in ids, "the overlapped night must be gone"
+    assert theirs["id"] in {a["client_activity_id"] for a in others}
+
+
+@pytest.mark.asyncio
+async def test_a_meditation_never_displaces_a_night():
+    """Only Sleep rows take part in the overlap rule: a practice logged in
+    the middle of a night — a nap, a 3 a.m. breathing session — sits beside
+    it."""
+    dev = "test-night-user-d"
+    night = _night("00000000-0000-0000-0000-0000000000d6", "2025-06-01T23:00:00Z", "2025-06-02T06:30:00Z")
+    sit = dict(_PAYLOAD, id="00000000-0000-0000-0000-0000000000d7",
+               started_at="2025-06-02T03:00:00Z", ended_at="2025-06-02T03:15:00Z")
+    async with _client() as client:
+        assert (await client.post("/activities", json=night, headers={"X-User-ID": dev})).status_code == 200
+        assert (await client.post("/activities", json=sit, headers={"X-User-ID": dev})).status_code == 200
+        mine = await _user_activities(client, dev)
+    assert {a["client_activity_id"] for a in mine} >= {night["id"], sit["id"]}

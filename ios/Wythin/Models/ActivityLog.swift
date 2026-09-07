@@ -234,6 +234,17 @@ final class ActivityLog {
     /// no way to tell it from a real read; a separate field makes the stale
     /// value simply unreferenced.
     var sleepReadText: String?
+    /// The rest of the night, as JSON (`SleepNightDetail`): the run-length
+    /// hypnogram, the position bands and minutes, the wake bouts and longest
+    /// wake the Continuity section was scored on, and the heart-rate nadir.
+    ///
+    /// Written once, at record time, from the night's own points. Everything
+    /// in it used to be recomputed from the tick stream each time the night
+    /// was opened and never left the device; the server's tick stream has no
+    /// motion and no body position, so this is the only way the dashboard can
+    /// draw the night the app draws. One string rather than a dozen columns:
+    /// the row is read whole or not at all.
+    var sleepDetailJSON: String?
 
     // MARK: Exercise response
     //

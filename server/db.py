@@ -103,6 +103,9 @@ CREATE TABLE IF NOT EXISTS activities (
     before_dc     REAL, during_dc     REAL, after_dc     REAL,
     before_dfa1   REAL, during_dfa1   REAL, after_dfa1   REAL,
     before_breath REAL, during_breath REAL, after_breath REAL,
+    -- A recorded night: the app's score, sections, stage minutes, positions
+    -- and run-length hypnogram, as uploaded. NULL for every other activity.
+    sleep              JSONB,
     created_at         TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -178,6 +181,8 @@ ALTER TABLE activities ADD COLUMN IF NOT EXISTS impact_delta_pct REAL;
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS before_breath REAL;
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS during_breath REAL;
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS after_breath  REAL;
+-- The night's own summary — see docs/superpowers/specs/2026-09-06-sleep-night-sync-design.md.
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS sleep JSONB;
 
 -- Onboarding v2: name, body metrics and the self-reported baseline.
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS first_name          TEXT;

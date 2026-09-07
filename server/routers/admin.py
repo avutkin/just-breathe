@@ -10,6 +10,7 @@ GET /admin/sessions/{id}/export  — CSV download
 from __future__ import annotations
 
 import csv
+import json
 import io
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -227,7 +228,11 @@ async def usage_stats(
               -- What they told onboarding they're optimising for.
               COALESCE(pr.goals, '{}')                            AS goals,
               COALESCE(pr.practices, '{}')                        AS practices,
-              pr.email                                            AS email
+              pr.email                                            AS email,
+              pr.first_name                                       AS first_name,
+              pr.last_name                                        AS last_name,
+              -- A profile row exists only once onboarding was completed.
+              (pr.user_id IS NOT NULL)                            AS onboarded
             FROM users u
             LEFT JOIN profiles pr   ON pr.user_id = u.id
             LEFT JOIN in_range ir   ON ir.user_id = u.id
@@ -278,6 +283,9 @@ async def usage_stats(
                 "device_id":     r["device_id"],
                 "display_name":  r["display_name"],
                 "email":         r["email"],
+                "first_name":    r["first_name"],
+                "last_name":     r["last_name"],
+                "onboarded":     r["onboarded"],
                 "first_seen":    r["first_seen"].isoformat() if r["first_seen"] else None,
                 "last_seen":     r["last_seen"].isoformat() if r["last_seen"] else None,
                 "last_signal":   r["last_signal"].isoformat() if r["last_signal"] else None,
@@ -309,6 +317,9 @@ def _activity_row(r) -> dict:
     for k in ("started_at", "ended_at", "created_at"):
         if d.get(k) is not None:
             d[k] = d[k].isoformat()
+    # asyncpg hands jsonb back as text unless a codec is registered.
+    if isinstance(d.get("sleep"), str):
+        d["sleep"] = json.loads(d["sleep"])
     d["impact"] = impact_for(d)
     return d
 

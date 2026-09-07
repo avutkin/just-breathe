@@ -129,7 +129,9 @@ enum SleepThresholds {
     static let deepDepth: Double = 2.2
     static let remDepth: Double = 0.0
 
-    static let algorithmVersion: Int = 12
+    /// 13: nights carry `sleepDetailJSON` (hypnogram runs, position bands,
+    /// wake bouts, nadir) so the upload and the dashboard can show the night.
+    static let algorithmVersion: Int = 13
     /// Shortest run that can stand as its own stage. Sleep changes state on
     /// the scale of minutes; anything briefer is a turn or a dropped estimate,
     /// and leaving it in inflates every count derived from the hypnogram.

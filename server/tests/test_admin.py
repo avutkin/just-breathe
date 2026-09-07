@@ -338,10 +338,13 @@ async def test_stats_carries_onboarding_goals_and_practices():
     assert row["goals"] == goals
     assert row["practices"] == practices
     assert row["email"] == "someone@example.com"
+    assert row["onboarded"] is True
+    assert row["first_name"] is None  # not given on this profile
 
     bare = next(u for u in data["users"] if u["device_id"] == without)
     assert bare["goals"] == [] and bare["practices"] == []
     assert bare["email"] is None
+    assert bare["onboarded"] is False
 
 
 @pytest.mark.asyncio

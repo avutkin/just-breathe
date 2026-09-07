@@ -256,15 +256,23 @@ enum SleepRecorder {
         log.sleepAlgorithmVersion = SleepThresholds.algorithmVersion
 
         let tick = tickSeconds(nightPoints)
+        let detailed = SleepStages.detailed(nightPoints)
         apply(stages: SleepStages.withinSleep(nightPoints), to: log, points: nightPoints, tickSec: tick)
-        apply(detail: SleepStages.detailed(nightPoints), to: log, points: nightPoints, tickSec: tick)
+        apply(detail: detailed, to: log, points: nightPoints, tickSec: tick)
         let scored = score(night: night, points: nightPoints, existing: existing)
-        apply(score: scored, to: log)
+        apply(score: scored.score, to: log)
         log.sleepRegularity = SleepRegularity.index(of: priorWindows(existing) + [night])
+        log.sleepDetailJSON = SleepNightDetail(points: nightPoints, stages: detailed,
+                                               continuity: scored.continuity).json
 
         context.insert(log)
         // Window averages last: it queries the store, so the log must be in it.
         log.computeHRVWindows(context: context)
+        // A rebuilt night has a new id and an old `endedAt`. The uploader only
+        // sends rows that ended after its watermark, so without this the
+        // server keeps the night the app just deleted and never sees the one
+        // that replaced it.
+        ActivityUploadWatermark.rewind(before: night.endedAt)
         return log
     }
 
@@ -332,9 +340,17 @@ enum SleepRecorder {
         log.sleepAwakeMinutes = minutes(.wake)
     }
 
+    /// What the Continuity section was actually scored on, kept beside the
+    /// score so the stored night can be audited against its own arithmetic.
+    struct ContinuityInputs: Equatable {
+        var wakeBouts: Int
+        var longestUnbrokenSec: Double
+        var longestWakeSec: Double
+    }
+
     private static func score(night: SleepWindow,
                               points: [MetricsHistoryPoint],
-                              existing: [ActivityLog]) -> SleepScore {
+                              existing: [ActivityLog]) -> (score: SleepScore, continuity: ContinuityInputs) {
         let hrs = points.compactMap { $0.meanBPM }
         let rmssds = points.compactMap { $0.rmssd }
         // The same interior rule the reported minutes use. Continuity is scored
@@ -365,6 +381,10 @@ enum SleepRecorder {
         for s in stages {
             if s == .wake { run = 0 } else { run += 1; longest = max(longest, run) }
         }
+        var longestWake = 0, wakeRun = 0
+        for s in stages {
+            if s == .wake { wakeRun += 1; longestWake = max(longestWake, wakeRun) } else { wakeRun = 0 }
+        }
 
         let asleepSec = seconds(where: stages.map { $0 != .wake }, points: points)
 
@@ -384,7 +404,10 @@ enum SleepRecorder {
             meanRMSSD: rmssds.isEmpty ? nil : rmssds.reduce(0, +) / Float(rmssds.count),
             steadyFraction: SleepBreathing.steadyFraction(points)
         )
-        return SleepScore.compute(input)
+        return (SleepScore.compute(input),
+                ContinuityInputs(wakeBouts: bouts,
+                                 longestUnbrokenSec: Double(longest) * tick,
+                                 longestWakeSec: Double(longestWake) * tick))
     }
 
     private static func apply(score: SleepScore, to log: ActivityLog) {
@@ -396,5 +419,164 @@ enum SleepRecorder {
         log.sleepContinuity = score.sections[.continuity]
         log.sleepAutonomic = score.sections[.autonomic]
         log.sleepBreathing = score.sections[.breathing]
+    }
+}
+
+// MARK: - The rest of the night, stored
+
+/// What a night needs beyond the row's own columns for someone to draw it —
+/// the hypnogram as runs, the position bands, the wake bouts, the nadir.
+///
+/// Stored on `ActivityLog.sleepDetailJSON` and sent up inside the activity
+/// upload. The wire names are the insight payload's (`SleepNightPayload`), so
+/// the night has one vocabulary rather than two.
+struct SleepNightDetail: Codable, Equatable {
+
+    struct Run: Codable, Equatable {
+        /// `wake`, `rem`, `n1`, `n2`, `n3`.
+        let stage: String
+        let start: String
+        let end:   String
+    }
+
+    struct PositionBand: Codable, Equatable {
+        /// `BodyPosition.label` — "Supine", "Left side", …
+        let position: String
+        let start:    String
+        let end:      String
+    }
+
+    struct PositionShare: Codable, Equatable {
+        let position: String
+        let minutes:  Int
+    }
+
+    let wakeBouts:          Int
+    let longestUnbrokenMin: Int
+    let longestWakeMin:     Int
+    let lowestHR:           Double?
+    let lowestHRAt:         String?
+    /// False means the strap stored no orientation on this night — NOT that
+    /// the person never lay on their back.
+    let positionRecorded:   Bool
+    let positions:          [PositionShare]
+    let positionBands:      [PositionBand]
+    let stageRuns:          [Run]
+
+    enum CodingKeys: String, CodingKey {
+        case positions
+        case wakeBouts          = "wake_bouts"
+        case longestUnbrokenMin = "longest_unbroken_min"
+        case longestWakeMin     = "longest_wake_min"
+        case lowestHR           = "lowest_hr"
+        case lowestHRAt         = "lowest_hr_at"
+        case positionRecorded   = "position_recorded"
+        case positionBands      = "position_bands"
+        case stageRuns          = "stage_runs"
+    }
+
+    /// Field-by-field, for a restore: the custom initialisers above suppress
+    /// the synthesised one.
+    init(wakeBouts: Int, longestUnbrokenMin: Int, longestWakeMin: Int,
+         lowestHR: Double?, lowestHRAt: String?, positionRecorded: Bool,
+         positions: [PositionShare], positionBands: [PositionBand], stageRuns: [Run]) {
+        self.wakeBouts = wakeBouts
+        self.longestUnbrokenMin = longestUnbrokenMin
+        self.longestWakeMin = longestWakeMin
+        self.lowestHR = lowestHR
+        self.lowestHRAt = lowestHRAt
+        self.positionRecorded = positionRecorded
+        self.positions = positions
+        self.positionBands = positionBands
+        self.stageRuns = stageRuns
+    }
+
+    /// The heart-rate low is read off five-minute means, not off single
+    /// ticks: one tick's minimum is one noisy beat window, and the question
+    /// is when the body bottomed out, which is a stretch of the night.
+    static let nadirBinSec: Double = 300
+
+    init(points: [MetricsHistoryPoint],
+         stages: [SleepStageDetail],
+         continuity: SleepRecorder.ContinuityInputs) {
+        let iso = ISO8601DateFormatter()
+
+        wakeBouts          = continuity.wakeBouts
+        longestUnbrokenMin = Int((continuity.longestUnbrokenSec / 60).rounded())
+        longestWakeMin     = Int((continuity.longestWakeSec / 60).rounded())
+
+        // Hypnogram, run-length encoded. A run ends where the next one begins,
+        // so the ribbon has no gaps of its own; the last run ends on its last
+        // tick.
+        var runs: [Run] = []
+        if stages.count == points.count, !points.isEmpty {
+            var start = 0
+            for i in 1...stages.count where i == stages.count || stages[i] != stages[start] {
+                let end = i < points.count ? points[i].timestamp : points[points.count - 1].timestamp
+                runs.append(Run(stage: Self.name(stages[start]),
+                                start: iso.string(from: points[start].timestamp),
+                                end: iso.string(from: max(end, points[start].timestamp))))
+                start = i
+            }
+        }
+        stageRuns = runs
+
+        let bands = PreparedNight.positionBands(points)
+        positionBands = bands.map {
+            PositionBand(position: $0.position.label,
+                         start: iso.string(from: $0.start), end: iso.string(from: $0.end))
+        }
+        var minutes: [BodyPosition: Int] = [:]
+        for band in bands {
+            minutes[band.position, default: 0] += Int((band.end.timeIntervalSince(band.start) / 60).rounded())
+        }
+        // Longest first: the read leads with whichever dominated the night.
+        positions = minutes.filter { $0.value > 0 }
+            .sorted { $0.value > $1.value }
+            .map { PositionShare(position: $0.key.label, minutes: $0.value) }
+        positionRecorded = points.contains { $0.bodyPosition != nil }
+
+        if let low = Self.nadir(points) {
+            lowestHR = low.value
+            lowestHRAt = iso.string(from: low.at)
+        } else {
+            lowestHR = nil
+            lowestHRAt = nil
+        }
+    }
+
+    private static func name(_ s: SleepStageDetail) -> String {
+        switch s {
+        case .wake: return "wake"
+        case .rem:  return "rem"
+        case .n1:   return "n1"
+        case .n2:   return "n2"
+        case .n3:   return "n3"
+        }
+    }
+
+    private static func nadir(_ points: [MetricsHistoryPoint]) -> (value: Double, at: Date)? {
+        guard let first = points.first?.timestamp else { return nil }
+        var bins: [Int: (sum: Double, n: Int, at: Date)] = [:]
+        for p in points {
+            guard let hr = p.meanBPM else { continue }
+            let bin = Int(p.timestamp.timeIntervalSince(first) / nadirBinSec)
+            let cur = bins[bin] ?? (0, 0, p.timestamp)
+            bins[bin] = (cur.sum + Double(hr), cur.n + 1, cur.at)
+        }
+        guard let low = bins.values.min(by: { $0.sum / Double($0.n) < $1.sum / Double($1.n) }) else { return nil }
+        return ((low.sum / Double(low.n)).rounded(), low.at)
+    }
+
+    var json: String? {
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.sortedKeys]
+        return (try? enc.encode(self)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    init?(json: String?) {
+        guard let json, let data = json.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode(SleepNightDetail.self, from: data) else { return nil }
+        self = decoded
     }
 }

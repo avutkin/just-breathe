@@ -46,6 +46,9 @@ class ActivitySchema(BaseModel):
     impact_score:     Optional[int] = None
     impact_delta_pct: Optional[float] = None
     notes:            Optional[str] = None
+    # A recorded night's summary (score, sections, stages, positions, the
+    # run-length hypnogram). Stored as uploaded; only the app computes it.
+    sleep:            Optional[dict] = None
 
     before_hr:     Optional[float] = None; during_hr:     Optional[float] = None; after_hr:     Optional[float] = None
     before_rmssd:  Optional[float] = None; during_rmssd:  Optional[float] = None; after_rmssd:  Optional[float] = None
