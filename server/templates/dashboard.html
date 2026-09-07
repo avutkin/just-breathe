@@ -355,12 +355,21 @@
   const getKey = () => localStorage.getItem(KEY_STORE) || "";
   const setKey = (k) => localStorage.setItem(KEY_STORE, k);
 
+  // Stamped by the server from the template's own bytes. This page never
+  // reloads itself — every refresh is a data fetch into the JS that was
+  // loaded when the tab opened — so after a deploy an open tab kept rendering
+  // the old columns from the new API and looked exactly like the deploy not
+  // having happened. Every response carries the version the server is
+  // serving; the first mismatch reloads the page.
+  const DASHBOARD_VERSION = "__DASHBOARD_VERSION__";
   async function api(path) {
     let res;
     try { res = await fetch(path, { headers: { "X-API-Key": getKey() } }); }
     catch (e) { showGate("Network error — is the server reachable?"); throw e; }
     if (res.status === 401) { showGate(getKey() ? "That key was rejected." : ""); throw new Error("401"); }
     if (!res.ok) { showGate("Server error " + res.status); throw new Error(res.status); }
+    const served = res.headers.get("X-Dashboard-Version");
+    if (served && served !== DASHBOARD_VERSION) { location.reload(); throw new Error("dashboard updated — reloading"); }
     hideGate();
     return res.json();
   }
