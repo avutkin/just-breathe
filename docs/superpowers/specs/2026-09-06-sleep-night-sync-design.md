@@ -31,7 +31,7 @@ server, one panel on the dashboard. The vocabulary is the insight payload's
   `longest_wake_min`, `lowest_hr`, `lowest_hr_at`. Wake bouts and longest wake
   are the ones the Continuity section was scored on, not a view-time
   recomputation, so the upload is auditable against the printed arithmetic.
-- `SleepThresholds.algorithmVersion` 12 → 13, so every recorded night is
+- `SleepThresholds.algorithmVersion` → 14 (main had already taken 13 for the per-minute baselines, and build 120 shipped it without the detail), so every recorded night is
   purged and rebuilt with the detail. A rebuilt night has a new id and an old
   `endedAt`, which the uploader's watermark would skip, so the recorder
   rewinds the watermark to the earliest night it rewrote. Re-uploads are
