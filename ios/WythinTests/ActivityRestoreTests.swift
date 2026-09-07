@@ -115,4 +115,19 @@ final class ActivityRestoreTests: XCTestCase {
         XCTAssertTrue(nightJSON.contains("\"wake_bouts\":2"))
         XCTAssertTrue(nightJSON.contains("\"position_recorded\":false"))
     }
+
+    /// Every upload names the phone's zone, so the dashboard can show the
+    /// activity in the clock it happened in rather than the viewer's.
+    func testEveryUploadNamesThePhonesTimeZone() throws {
+        let sit = ActivityLog(activityType: "Meditation", startedAt: .now)
+        let enc = JSONEncoder(); enc.outputFormatting = .withoutEscapingSlashes
+        let json = String(decoding: try enc.encode(ActivityUploadPayload(from: sit)), as: UTF8.self)
+        XCTAssertTrue(json.contains("\"timezone\":\"\(TimeZone.current.identifier)\""), json)
+        XCTAssertFalse(TimeZone.current.identifier.isEmpty)
+
+        // A row the server holds from before zones were sent comes back
+        // without one, and restore must still read it.
+        let old = Data(#"{"id":"A","activity_type":"Meditation","started_at":"2026-01-01T00:00:00Z","is_manual":false}"#.utf8)
+        XCTAssertNil(try JSONDecoder().decode(ActivityUploadPayload.self, from: old).timezone)
+    }
 }

@@ -206,6 +206,12 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS state_stress        INT;
 -- careless `WHERE consent_ai_insights IS NOT FALSE` would let through.
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS consent_share_team  BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS consent_ai_insights BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- The phone's IANA time zone: on the profile as it is now, on each activity
+-- as it was when the row was uploaded. The dashboard shows a person's day in
+-- their own clock, not the viewer's.
+ALTER TABLE profiles   ADD COLUMN IF NOT EXISTS timezone TEXT;
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS timezone TEXT;
 """
 
 

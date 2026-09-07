@@ -242,6 +242,7 @@ async def usage_stats(
               pr.email                                            AS email,
               pr.first_name                                       AS first_name,
               pr.last_name                                        AS last_name,
+              pr.timezone                                         AS timezone,
               -- A profile row exists only once onboarding was completed.
               (pr.user_id IS NOT NULL)                            AS onboarded
             FROM users u
@@ -296,6 +297,7 @@ async def usage_stats(
                 "email":         r["email"],
                 "first_name":    r["first_name"],
                 "last_name":     r["last_name"],
+                "timezone":      r["timezone"],
                 "onboarded":     r["onboarded"],
                 "first_seen":    r["first_seen"].isoformat() if r["first_seen"] else None,
                 "last_seen":     r["last_seen"].isoformat() if r["last_seen"] else None,
@@ -401,7 +403,7 @@ async def user_detail(user_id: str):
                    height_cm, weight_kg, goals, practices, devices,
                    state_focus, state_anxiety, state_energy,
                    state_sleep_quality, state_stress,
-                   consent_share_team, consent_ai_insights, updated_at
+                   consent_share_team, consent_ai_insights, timezone, updated_at
             FROM profiles WHERE user_id = $1::uuid
             """,
             user_id,
@@ -424,6 +426,9 @@ async def user_detail(user_id: str):
             "total_minutes": round(_f(u["total_minutes"]), 1),
             "avg_coherence": round(_f(u["avg_coherence"]), 3) if u["avg_coherence"] is not None else None,
             "avg_rsa":       round(_f(u["avg_rsa"]), 1) if u["avg_rsa"] is not None else None,
+            # The phone's zone, as last reported with the profile; None until
+            # a build that sends it has synced.
+            "timezone":      profile["timezone"] if profile is not None else None,
         },
         "sessions": [
             {
@@ -442,6 +447,7 @@ async def user_detail(user_id: str):
         "profile": None if profile is None else {
             "first_name": profile["first_name"],
             "last_name":  profile["last_name"],
+            "timezone":   profile["timezone"],
             "phone":      profile["phone"],
             "email":      profile["email"],
             "age_range":  profile["age_range"],
@@ -725,9 +731,16 @@ async def activity_detail(activity_id: str):
         row = await conn.fetchrow(
             "SELECT * FROM activities WHERE id = $1::uuid", activity_id
         )
-    if row is None:
-        raise HTTPException(status_code=404, detail="activity not found")
-    return _activity_row(row)
+        if row is None:
+            raise HTTPException(status_code=404, detail="activity not found")
+        # The zone the phone is in now — the fallback clock for a row uploaded
+        # by a build that did not yet say which zone it was recorded in.
+        zone = await conn.fetchval(
+            "SELECT timezone FROM profiles WHERE user_id = $1", row["user_id"]
+        )
+    d = _activity_row(row)
+    d["user_timezone"] = zone
+    return d
 
 
 @router.get("/activities/{activity_id}/series")

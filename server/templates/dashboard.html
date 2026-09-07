@@ -36,6 +36,13 @@
   button:hover, select:hover { border-color: var(--accent); }
   button:disabled { opacity: .35; cursor: default; border-color: var(--border); }
   #win-label { font-family: var(--mono); font-size: 11px; color: var(--dim); margin: 0 2px; }
+  /* The clock in effect: which zone every date and time on the page is in. */
+  .tzwrap { display: inline-flex; align-items: center; gap: 6px; }
+  .tztag { font: 10.5px var(--mono); letter-spacing: .04em; color: var(--dim); border: 1px solid var(--border);
+           border-radius: 999px; padding: 4px 9px; white-space: nowrap; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
+  .tztag.known { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+                 background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .tztag.unknown { color: var(--hold); border-color: color-mix(in srgb, var(--hold) 35%, transparent); }
 
   .crumb { font-family: var(--mono); font-size: 12px; color: var(--dim); margin: 14px 0 4px; }
   .crumb a { color: var(--accent); cursor: pointer; text-decoration: none; }
@@ -200,6 +207,13 @@
       <span class="sub" id="updated"></span>
       <span class="spacer"></span>
       <div class="controls">
+        <span class="tzwrap">
+          <select id="clock" title="Which clock every time on this page is shown in">
+            <option value="phone">Phone time</option>
+            <option value="utc">UTC</option>
+          </select>
+          <span class="tztag" id="tz-tag"></span>
+        </span>
         <select id="range">
           <option value="today">Today</option>
           <option value="24h">Last 24 hours</option>
@@ -334,15 +348,89 @@
   const KEY_STORE = "wythin_admin_key";
   const $ = (s) => document.querySelector(s);
   const fmt = (n, d = 0) => (n == null ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d }));
-  const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString(undefined, { year: "2-digit", month: "short", day: "numeric" }) : "—";
-  const fmtTime = (iso) => iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+
+  // ── The clock ─────────────────────────────────────────────────────────
+  // Every instant on this page is shown in ONE zone: the phone's own, by
+  // default, so a night that began at 23:10 in Berlin reads 23:10 whoever is
+  // looking — or UTC, on the switch in the header. The phone reports its
+  // IANA zone with the profile (where it is now) and with each activity
+  // (where it was then); until a build that sends it has synced, the tag
+  // says so and the page falls back to the browser's zone.
+  const CLOCK_STORE = "wythin_admin_clock";
+  const BROWSER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const clockMode = () => { try { return localStorage.getItem(CLOCK_STORE) === "utc" ? "utc" : "phone"; } catch { return "phone"; } };
+  const setClockMode = (m) => { try { localStorage.setItem(CLOCK_STORE, m); } catch {} };
+  const zoneOk = (z) => { if (!z) return false; try { new Intl.DateTimeFormat(undefined, { timeZone: z }); return true; } catch { return false; } };
+  // The zone in effect: UTC on the switch; otherwise the zone given, the
+  // view's zone, the browser's — the first that is known.
+  const tzFor = (zone) => clockMode() === "utc" ? "UTC"
+    : zoneOk(zone) ? zone : zoneOk(state.zone) ? state.zone : BROWSER_TZ;
+  const fmtCache = new Map();
+  const dtf = (opts, zone) => {
+    const tz = tzFor(zone), k = tz + "|" + JSON.stringify(opts);
+    let f = fmtCache.get(k);
+    if (!f) { f = new Intl.DateTimeFormat(undefined, { ...opts, timeZone: tz }); fmtCache.set(k, f); }
+    return f;
+  };
+  const F = {
+    date:  { year: "2-digit", month: "short", day: "numeric" },
+    time:  { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" },
+    clock: { hour: "2-digit", minute: "2-digit" },
+    md:    { month: "short", day: "numeric" },
+    mdn:   { month: "numeric", day: "numeric" },
+    full:  { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" },
+  };
+  const when = (t, opts, zone) => dtf(opts, zone).format(t instanceof Date ? t : new Date(t));
+  // Calendar fields of an instant in the zone in effect — for labels built
+  // by hand (the bar chart's MM-DD) and for the offset the server takes.
+  const fields = (t, zone) => {
+    const out = {};
+    dtf({ year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }, zone)
+      .formatToParts(t instanceof Date ? t : new Date(t))
+      .forEach(p => { if (p.type !== "literal") out[p.type] = Number(p.value); });
+    if (out.hour === 24) out.hour = 0;
+    return out;
+  };
+  // JS-style offset (UTC minus local, in minutes) of the zone in effect, now:
+  // what /admin/stats and /track take so their days break on that midnight.
+  const tzOffsetNow = () => {
+    const now = new Date(), f = fields(now);
+    const asUTC = Date.UTC(f.year, f.month - 1, f.day, f.hour, f.minute, f.second);
+    return Math.round((Math.floor(now.getTime() / 1000) * 1000 - asUTC) / 60000);
+  };
+  const gmtLabel = (zone) => {
+    try {
+      return new Intl.DateTimeFormat("en-US", { timeZone: tzFor(zone), timeZoneName: "shortOffset" })
+        .formatToParts(new Date()).find(p => p.type === "timeZoneName").value;
+    } catch { return ""; }
+  };
+  // The tag in the header: which zone the page is in, and whose it is.
+  function renderClock() {
+    const tag = $("#tz-tag"), mode = clockMode();
+    $("#clock").value = mode;
+    tag.classList.remove("known", "unknown");
+    if (mode === "utc") { tag.textContent = "UTC"; tag.title = "Every time on this page is in UTC"; return; }
+    if (state.view === "overview") {
+      tag.textContent = `${BROWSER_TZ} · ${gmtLabel()} · your browser`;
+      tag.title = "The overview spans everyone, so it is in your browser's zone; each row's first- and last-seen are in that person's own zone where the phone has reported one";
+    } else if (zoneOk(state.zone)) {
+      tag.classList.add("known");
+      tag.textContent = `${state.zone} · ${gmtLabel()}${state.zoneFrom ? " · " + state.zoneFrom : ""}`;
+      tag.title = "This person's phone zone; every time on this page is in it";
+    } else {
+      tag.classList.add("unknown");
+      tag.textContent = `${BROWSER_TZ} · ${gmtLabel()} · phone zone not synced yet`;
+      tag.title = "This phone has not reported its time zone yet — it arrives with the next app build. Times are in your browser's zone meanwhile";
+    }
+  }
+
+  const fmtDate = (iso, zone) => iso ? when(iso, F.date, zone) : "—";
+  const fmtTime = (iso, zone) => iso ? when(iso, F.time, zone) : "—";
   // Date big, clock time beside it — KPI cards get the exact moment without the
   // 26px value line growing long enough to wrap.
-  const fmtStamp = (iso, blank = "—") => {
+  const fmtStamp = (iso, blank = "—", zone) => {
     if (!iso) return blank;
-    const d = new Date(iso);
-    return `${d.toLocaleDateString(undefined, { year: "2-digit", month: "short", day: "numeric" })}`
-         + ` <small>${d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</small>`;
+    return `${when(iso, F.date, zone)} <small>${when(iso, F.clock, zone)}</small>`;
   };
   const ago = (iso) => {
     if (!iso) return "never";
@@ -351,7 +439,9 @@
     if (d < 30) return Math.floor(d) + "d ago"; return fmtDate(iso);
   };
 
-  const state = { view: "overview", userId: null, overview: null, sortKey: "last_seen", sortDir: -1 };
+  // zone / zoneFrom: the phone zone of the person being looked at, and where
+  // it came from; cleared on the overview.
+  const state = { view: "overview", userId: null, overview: null, sortKey: "last_seen", sortDir: -1, zone: null, zoneFrom: "" };
   const getKey = () => localStorage.getItem(KEY_STORE) || "";
   const setKey = (k) => localStorage.setItem(KEY_STORE, k);
 
@@ -378,7 +468,7 @@
     state.view = view;
     ["overview", "user", "session", "activity"].forEach(v => $("#view-" + v).style.display = v === view ? "" : "none");
   }
-  const stamp = () => $("#updated").textContent = "updated " + new Date().toLocaleTimeString();
+  const stamp = () => { $("#updated").textContent = "updated " + new Date().toLocaleTimeString(); renderClock(); };
 
   // ── Overview ──────────────────────────────────────────────────────────
   // Labels for the range picker. Day boundaries are the viewer's, not UTC's —
@@ -387,8 +477,9 @@
   const pad2 = (n) => String(n).padStart(2, "0");
 
   async function loadOverview() {
-    const d = await api(`stats?range=${$("#range").value}&tz_offset=${new Date().getTimezoneOffset()}`);
+    const d = await api(`stats?range=${$("#range").value}&tz_offset=${tzOffsetNow()}`);
     state.overview = d;
+    state.zone = null; state.zoneFrom = "";
     show("overview");
     $("#crumb").innerHTML = "";
     const k = d.kpis, r = RANGE_LABEL[d.range] || d.range;
@@ -409,11 +500,11 @@
     const hourly = d.bucket === "hour";
     $("#chart-title").textContent = hourly ? "Sessions per hour" : "Sessions per day";
     barChart($("#chart"), (d.sessions_per_day || []).map(s => {
-      const t = new Date(s.t);
+      const t = new Date(s.t), f = fields(t);
       return {
-        label: hourly ? pad2(t.getHours()) : `${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`,
+        label: hourly ? pad2(f.hour) : `${pad2(f.month)}-${pad2(f.day)}`,
         value: s.sessions,
-        title: `${hourly ? t.toLocaleString() : t.toLocaleDateString()}: ${s.sessions}`,
+        title: `${hourly ? when(t, F.full) : when(t, F.date)}: ${s.sessions}`,
       };
     }));
     state.users = d.users || [];
@@ -451,7 +542,7 @@
     // Onboarding answers live in the per-user drill-down, not here — the table
     // is for behaviour over time, and the answers are a profile, not a metric.
     { k: "first_seen", label: "First seen", cell: (u) =>
-        u.first_seen ? `<span title="${esc(new Date(u.first_seen).toLocaleString())}">${fmtDate(u.first_seen)}</span>` : "—" },
+        u.first_seen ? `<span title="${esc(when(u.first_seen, F.full, u.timezone))}">${fmtDate(u.first_seen, u.timezone)}</span>` : "—" },
     // Last seen = newest PolarH10 data. Show the moment itself, not "today" —
     // the relative age and the last non-strap signal ride along in the tooltip.
     { k: "last_seen", label: "Last strap", cell: (u) => {
@@ -459,11 +550,10 @@
           return `<span class="never" title="${u.last_signal ? "app signal " + ago(u.last_signal) + " — but no strap data ever" : "no data at all"}">no strap data</span>`;
         }
         // Always date + time. "21:54" alone is ambiguous the moment a row is
-        // not from today, and the whole point of this column is when.
-        const t = new Date(u.last_seen);
-        const label = t.toLocaleString(undefined,
-          { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-        return `<span title="${esc(t.toLocaleString())} — ${ago(u.last_seen)}${u.last_signal && u.last_signal > u.last_seen ? "; app signal " + ago(u.last_signal) : ""}">${label}</span>`;
+        // not from today, and the whole point of this column is when. In that
+        // person's own zone where the phone has reported one.
+        const label = when(u.last_seen, F.time, u.timezone);
+        return `<span title="${esc(when(u.last_seen, F.full, u.timezone))}${u.timezone ? " " + esc(u.timezone) : ""} — ${ago(u.last_seen)}${u.last_signal && u.last_signal > u.last_seen ? "; app signal " + ago(u.last_signal) : ""}">${label}</span>`;
       } },
     { k: "current_streak", label: "Streak", cell: (u) => u.current_streak ? `${u.current_streak}d${u.practiced_today ? " •" : ""}` : "—" },
     { k: "days_active_7d", label: "Active 7d", cell: (u) => fmt(u.days_active_7d) },
@@ -506,6 +596,8 @@
     const d = await api(`users/${id}`);
     show("user");
     const u = d.user;
+    state.zone = u.timezone || null;
+    state.zoneFrom = u.timezone ? "phone, as last synced" : "";
     const who = (d.profile && fullName(d.profile)) || u.display_name || (u.device_id || id).slice(0, 12);
     $("#crumb").innerHTML = `<a data-nav="/">Overview</a> › <strong>${who}</strong>`;
     const cards = [
@@ -515,8 +607,13 @@
       ["Last strap", fmtStamp(u.last_seen, "no strap data")],
       ["Avg coherence", u.avg_coherence == null ? "—" : fmt(u.avg_coherence, 2)],
       ["Avg RSA", u.avg_rsa == null ? "—" : fmt(u.avg_rsa, 1) + " <small>ms</small>"],
+      // The phone's zone — the clock this whole page is in for this person.
+      ["Phone clock", u.timezone
+          ? `<span style="font-size:15px;font-family:var(--mono)">${esc(u.timezone)}</span> <small>${esc(gmtLabel(u.timezone))}</small>`
+          : "—",
+        u.timezone ? "as last synced by the app" : "not synced yet — arrives with the next app build"],
     ];
-    $("#user-kpis").innerHTML = cards.map(([l, v]) => `<div class="kpi"><div class="label">${l}</div><div class="value">${v}</div></div>`).join("");
+    $("#user-kpis").innerHTML = cards.map(([l, v, n]) => `<div class="kpi"><div class="label">${l}</div><div class="value">${v}</div>${n ? `<div class="note">${n}</div>` : ""}</div>`).join("");
     drawOnboarding(d.profile);
     // Changing the window length restarts at the present; the arrows walk back
     // and forward a whole window at a time.
@@ -574,7 +671,7 @@
       const name = a.activity_subtype || (a.activity_type === "Custom" ? (a.custom_name || "Custom") : a.activity_type);
       const dur = (a.started_at && a.ended_at) ? (new Date(a.ended_at) - new Date(a.started_at)) / 60000 : null;
       return `<tr class="clickable" data-id="${a.id}">
-        <td>${fmtTime(a.started_at)}</td>
+        <td>${fmtTime(a.started_at, a.timezone)}</td>
         <td><span class="name">${name}</span><br><span class="device">${a.activity_type}${a.is_manual ? " · manual" : ""}</span></td>
         <td>${dur == null ? "—" : fmt(dur, 0) + " min"}</td>
         <td>${a.sleep ? (a.sleep.score == null ? "night —" : `night ${a.sleep.score}`) : (a.impact && a.impact.score != null ? a.impact.score : "—")}</td>
@@ -616,8 +713,7 @@
 
     // Name the window being shown. At offset 0 it is simply "now"; stepping
     // back, the dates matter more than the clock.
-    const fmtEdge = (iso) => new Date(iso).toLocaleString(undefined,
-      { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const fmtEdge = (iso) => when(iso, F.time);
     $("#win-label").textContent = off === 0
       ? `now — back to ${fmtEdge(d.start)}`
       : `${fmtEdge(d.start)} → ${fmtEdge(d.end)}`;
@@ -633,13 +729,13 @@
   // Everything the person answered at onboarding. All of it is user-typed or
   // user-picked, so every value goes through esc().
   function drawOnboarding(p) {
-    const when = $("#onboarding-when"), host = $("#onboarding");
+    const whenEl = $("#onboarding-when"), host = $("#onboarding");
     if (!p) {
-      when.textContent = "";
+      whenEl.textContent = "";
       host.innerHTML = `<div class="empty">no onboarding answers — this user has not completed onboarding, or their app has not synced the profile yet</div>`;
       return;
     }
-    when.textContent = p.updated_at ? `— answered ${fmtDate(p.updated_at)}` : "";
+    whenEl.textContent = p.updated_at ? `— answered ${fmtDate(p.updated_at)}` : "";
     const one = (label, v) => `<div class="fact"><div class="k">${label}</div><div class="v">${v ? esc(v) : "—"}</div></div>`;
     const many = (label, arr) => `<div class="fact"><div class="k">${label}</div><div class="v">${
       arr && arr.length ? arr.map(a => `<span class="tag">${esc(a)}</span>`).join("") : "—"}</div></div>`;
@@ -650,6 +746,7 @@
       ${one("Phone", p.phone)}
       ${one("Age range", p.age_range)}
       ${one("Gender", p.gender)}
+      ${one("Phone time zone", p.timezone)}
       ${many("Objectives", p.goals)}
       ${many("Practices", p.practices)}
       ${many("Devices", p.devices)}
@@ -662,8 +759,8 @@
 
   async function loadUserTrack(id) {
     const period = $("#track-period").value, off = state.trackOffset || 0;
-    const d = await api(`users/${id}/track?period=${period}&offset=${off}&tz_offset=${new Date().getTimezoneOffset()}`);
-    const day = (iso) => new Date(iso + (iso.endsWith("Z") ? "" : "")).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const d = await api(`users/${id}/track?period=${period}&offset=${off}&tz_offset=${tzOffsetNow()}`);
+    const day = (iso) => when(iso, F.md);
     $("#track-label").textContent = `${day(d.start)} → ${day(d.end)}`;
     $("#track-next").disabled = off === 0;
 
@@ -812,6 +909,9 @@
   async function openActivity(id) {
     const a = await api(`activities/${id}`);
     show("activity");
+    // The zone the phone was in when it recorded this, else where it is now.
+    state.zone = a.timezone || a.user_timezone || null;
+    state.zoneFrom = a.timezone ? "phone, when recorded" : a.user_timezone ? "phone, as last synced" : "";
     const name = a.activity_subtype || (a.activity_type === "Custom" ? (a.custom_name || "Custom") : a.activity_type);
     const back = state.userId ? `<a data-nav="/user/${state.userId}">user</a>` : `<a data-nav="/">Overview</a>`;
     $("#crumb").innerHTML = `<a data-nav="/">Overview</a> › ${back} › <strong>${name}</strong>`;
@@ -905,7 +1005,7 @@
   };
   const POSITION_COLOR = { "Supine": "#4A5568", "Prone": "#2f3744", "Left side": "#7C8DA6", "Right side": "#A9B6C9", "Upright": "#C8A24C" };
   const hm = (m) => m == null ? "—" : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
-  const clockOf = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const clockOf = (iso) => when(iso, F.clock);
   const band = (v) => v < 45 ? "act" : v >= 70 ? "keep" : "improve";
   const VERDICT = { act: "below your usual", improve: "about usual", keep: "a good night for you" };
 
@@ -1096,7 +1196,7 @@
     const hour = 3600e3, firstTick = Math.ceil(x0 / hour) * hour;
     for (let t = firstTick; t <= x1; t += hour) {
       el += `<line class="grid" x1="${px(t).toFixed(1)}" y1="${top}" x2="${px(t).toFixed(1)}" y2="${y}" stroke-dasharray="2 4"/>`;
-      el += `<text class="clock" x="${px(t).toFixed(1)}" y="${y + 12}" text-anchor="middle">${new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</text>`;
+      el += `<text class="clock" x="${px(t).toFixed(1)}" y="${y + 12}" text-anchor="middle">${when(t, F.clock)}</text>`;
     }
     el += `<text class="chip" x="${L}" y="${y + 26}">ASLEEP ${clockOf(x0)}</text><text class="chip" x="${W - R}" y="${y + 26}" text-anchor="end">WOKE ${clockOf(x1)}</text>`;
     svg.setAttribute("viewBox", `0 0 ${W} ${y + 32}`);
@@ -1245,7 +1345,7 @@
     el += `<line class="axis" x1="${pad.l}" y1="${base}" x2="${W - pad.r}" y2="${base}"/>`;
     // Only the activity's own boundaries get labelled: the window edges sit 5
     // and 10 minutes away and their labels collide with these at card width.
-    const clock = (t) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    const clock = (t) => when(t, F.clock);
     [meta.start, meta.end].forEach(t => {
       const x = pxOf(t);
       const anchor = x < 34 ? "start" : x > W - 34 ? "end" : "middle";
@@ -1328,12 +1428,11 @@
     const who = document.createElement("div"); who.className = "who";
     const key = document.createElement("span"); key.className = "key"; key.style.background = sig.color;
     who.append(key, document.createTextNode(sig.label));
-    const when = document.createElement("div"); when.className = "when";
+    const whenEl = document.createElement("div"); whenEl.className = "when";
     // Always dated: a 24h window straddles midnight, so a bare clock time
     // cannot be placed on a calendar.
-    when.textContent = new Date(p.t).toLocaleString(undefined,
-      { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-    tip.append(val, who, when);
+    whenEl.textContent = when(p.t, F.time);
+    tip.append(val, who, whenEl);
     tip.classList.add("on");
     const r = tip.getBoundingClientRect();
     tip.style.left = Math.min(innerWidth - r.width - 8, Math.max(8, cx - r.width / 2)) + "px";
@@ -1426,10 +1525,9 @@
     // stays bare so three dated stamps don't collide in a 300px card.
     const hourly = span <= 36 * 3600e3;
     const fmtT = (t, dated) => {
-      const d = new Date(t);
-      if (!hourly) return d.toLocaleDateString(undefined, { month: "numeric", day: "numeric" });
-      const clock = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-      return dated ? `${d.toLocaleDateString(undefined, { month: "numeric", day: "numeric" })} ${clock}` : clock;
+      if (!hourly) return when(t, F.mdn);
+      const clock = when(t, F.clock);
+      return dated ? `${when(t, F.mdn)} ${clock}` : clock;
     };
     el += `<line class="axis" x1="${pad.l}" y1="${base}" x2="${W - pad.r}" y2="${base}"/>`;
     [[x0, pad.l, "start", true],
@@ -1498,6 +1596,9 @@
   $("#changeKey").onclick = () => { $("#keyInput").value = getKey(); showGate(""); };
   $("#refresh").onclick = route;
   $("#range").onchange = () => { if (state.view === "overview") loadOverview().catch(() => {}); };
+  // Phone time ⇄ UTC: remembered per browser, and the whole view redraws.
+  $("#clock").onchange = () => { setClockMode($("#clock").value); fmtCache.clear(); route(); };
+  $("#clock").value = clockMode();
   $("#show-all-users").onchange = () => { if (state.users) renderUsers(); };
   window.addEventListener("hashchange", route);
 

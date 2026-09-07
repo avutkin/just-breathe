@@ -256,3 +256,35 @@ async def test_a_meditation_never_displaces_a_night():
         assert (await client.post("/activities", json=sit, headers={"X-User-ID": dev})).status_code == 200
         mine = await _user_activities(client, dev)
     assert {a["client_activity_id"] for a in mine} >= {night["id"], sit["id"]}
+
+
+@pytest.mark.asyncio
+async def test_activity_carries_the_zone_it_was_recorded_in():
+    """Each upload names the phone's zone at the time, so a night recorded on
+    a trip keeps its own clock after the person flies home. The detail page
+    also carries the profile's zone as the fallback for rows uploaded by an
+    older app that sent none."""
+    async with _client() as client:
+        await client.post("/v1/profile", json={"timezone": "America/Los_Angeles"},
+                          headers={"X-User-ID": "test-tz-user"})
+        trip = {**_PAYLOAD, "id": "00000000-0000-0000-0000-0000000000c4", "timezone": "Asia/Tokyo"}
+        up = await client.post("/activities", json=trip, headers={"X-User-ID": "test-tz-user"})
+        assert up.status_code == 200, up.text
+        d = (await client.get(f"/admin/activities/{up.json()['id']}")).json()
+        assert d["timezone"] == "Asia/Tokyo"
+        assert d["user_timezone"] == "America/Los_Angeles"
+
+        old = {**_PAYLOAD, "id": "00000000-0000-0000-0000-0000000000c5"}
+        up = await client.post("/activities", json=old, headers={"X-User-ID": "test-tz-user"})
+        d = (await client.get(f"/admin/activities/{up.json()['id']}")).json()
+        assert d["timezone"] is None
+        assert d["user_timezone"] == "America/Los_Angeles"
+
+        bogus = {**_PAYLOAD, "id": "00000000-0000-0000-0000-0000000000c6", "timezone": "Not/AZone"}
+        up = await client.post("/activities", json=bogus, headers={"X-User-ID": "test-tz-user"})
+        assert up.status_code == 200
+        d = (await client.get(f"/admin/activities/{up.json()['id']}")).json()
+        assert d["timezone"] is None
+
+        acts = await _user_activities(client, "test-tz-user")
+        assert next(a for a in acts if a["client_activity_id"] == trip["id"])["timezone"] == "Asia/Tokyo"

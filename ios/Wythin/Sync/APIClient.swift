@@ -307,6 +307,10 @@ struct ProfilePayload: Codable {
     /// can't read is not a control, it's a label.
     let consent_share_team:  Bool
     let consent_ai_insights: Bool
+    /// The phone's IANA time zone, so the dashboard shows this person's day in
+    /// their own clock. Travels with the profile because the profile is the one
+    /// thing re-sent whenever it changes — a new zone is a changed profile.
+    let timezone:            String
 }
 
 struct ServerSession: Codable {
@@ -583,7 +587,8 @@ final class MetricSyncService {
             state_energy: p.state.energy, state_sleep_quality: p.state.sleepQuality,
             state_stress: p.state.stress,
             consent_share_team: OnboardingConsent.shareWithTeam(),
-            consent_ai_insights: OnboardingConsent.aiInsights())
+            consent_ai_insights: OnboardingConsent.aiInsights(),
+            timezone: TimeZone.current.identifier)
         if let encoded = try? Self.profileEncoder.encode(profile) {
             let canonical = String(decoding: encoded, as: UTF8.self)
             if canonical != syncedProfile,

@@ -37,7 +37,7 @@ async def save_activity(
     base_cols = [
         "client_activity_id", "user_id", "activity_type", "activity_subtype",
         "custom_name", "started_at", "ended_at", "is_manual", "impact_score",
-        "impact_delta_pct", "notes", "sleep",
+        "impact_delta_pct", "notes", "sleep", "timezone",
     ]
     cols = base_cols + _METRIC_COLS
     started, ended = _parse_dt(activity.started_at), _parse_dt(activity.ended_at)
@@ -46,6 +46,7 @@ async def save_activity(
         activity.custom_name, started, ended,
         activity.is_manual, activity.impact_score, activity.impact_delta_pct, activity.notes,
         json.dumps(activity.sleep) if activity.sleep is not None else None,
+        activity.timezone,
     ] + [getattr(activity, c) for c in _METRIC_COLS]
 
     placeholders = ", ".join(

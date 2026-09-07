@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from pydantic import BaseModel, Field, field_validator
 import uuid
 
 
@@ -33,6 +34,19 @@ class SessionSchema(BaseModel):
     samples:           list[SampleSchema] = []
 
 
+def zone_or_none(name):
+    """An IANA zone name the server knows, else None. The dashboard hands this
+    straight to Intl.DateTimeFormat, which throws on a name it does not know —
+    so an unrecognised zone is stored as unknown, not as a string."""
+    if not name:
+        return None
+    try:
+        ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError, TypeError):
+        return None
+    return name
+
+
 class ActivitySchema(BaseModel):
     """One logged activity uploaded from the iOS ActivityLog. Metric fields are
     the stored before/during/after window averages (same grid the app shows)."""
@@ -49,6 +63,11 @@ class ActivitySchema(BaseModel):
     # A recorded night's summary (score, sections, stages, positions, the
     # run-length hypnogram). Stored as uploaded; only the app computes it.
     sleep:            Optional[dict] = None
+    # The phone's IANA zone when it uploaded this row, so the activity keeps
+    # its own clock even after the person has flown somewhere else.
+    timezone:         Optional[str] = None
+
+    _zone = field_validator("timezone")(lambda cls, v: zone_or_none(v))
 
     before_hr:     Optional[float] = None; during_hr:     Optional[float] = None; after_hr:     Optional[float] = None
     before_rmssd:  Optional[float] = None; during_rmssd:  Optional[float] = None; after_rmssd:  Optional[float] = None
@@ -111,6 +130,11 @@ class ProfileUpload(BaseModel):
     # as agreement.
     consent_share_team:  bool = False
     consent_ai_insights: bool = False
+    # The phone's current IANA zone — the clock the dashboard shows this
+    # person's day in.
+    timezone:            Optional[str] = None
+
+    _zone = field_validator("timezone")(lambda cls, v: zone_or_none(v))
 
 
 class UsageEvent(BaseModel):
