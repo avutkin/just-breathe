@@ -171,7 +171,9 @@ async def usage_stats(
                 GROUP BY user_id
             ),
             metrics AS (
-                SELECT user_id, AVG(coherence) AS avg_coherence, AVG(rsa_ms) AS avg_rsa
+                SELECT user_id, AVG(coherence) AS avg_coherence, AVG(rsa_ms) AS avg_rsa,
+                       -- Inner Noise (PIP): lower is calmer.
+                       AVG(pip) AS avg_pip
                 FROM metric_samples
                 WHERE ($2::timestamptz IS NULL OR ts >= $2)
                 GROUP BY user_id
@@ -219,6 +221,7 @@ async def usage_stats(
               COALESCE(ir.total_minutes, 0)      AS total_minutes,
               m.avg_coherence                    AS avg_coherence,
               m.avg_rsa                          AS avg_rsa,
+              m.avg_pip                          AS avg_pip,
               COALESCE(c.current_streak, 0)      AS current_streak,
               COALESCE(c.days_active_7d, 0)      AS days_active_7d,
               COALESCE(c.practiced_today, FALSE) AS practiced_today,
@@ -293,6 +296,7 @@ async def usage_stats(
                 "total_minutes": round(_f(r["total_minutes"]), 1),
                 "avg_coherence": round(_f(r["avg_coherence"]), 3) if r["avg_coherence"] is not None else None,
                 "avg_rsa":       round(_f(r["avg_rsa"]), 1) if r["avg_rsa"] is not None else None,
+                "avg_pip":       round(_f(r["avg_pip"]), 1) if r["avg_pip"] is not None else None,
                 "current_streak":  r["current_streak"],
                 "days_active_7d":  r["days_active_7d"],
                 "practiced_today": r["practiced_today"],
