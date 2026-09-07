@@ -1122,7 +1122,7 @@
     const pts = d.samples || [];
     if (!pts.length) {
       host.innerHTML = `<div class="empty">no per-tick data recorded around this activity</div>`;
-      if (a.sleep) drawMontage(a, []);
+      if (a.activity_type === "Sleep") drawMontage(a, []);
       return;
     }
     const meta = {
@@ -1131,7 +1131,7 @@
       wStart: new Date(d.window_start).getTime(),
       wEnd:   new Date(d.window_end).getTime(),
     };
-    if (a.sleep) drawMontage(a, pts);
+    if (a.activity_type === "Sleep") drawMontage(a, pts);
     host.innerHTML = ACT_METRICS.map(([label, key, dp, higherBetter]) => {
       const col = ACT_SERIES_COL[key];
       const af = a[`after_${key}`];
