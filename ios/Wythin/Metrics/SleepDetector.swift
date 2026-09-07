@@ -129,7 +129,11 @@ enum SleepThresholds {
     static let deepDepth: Double = 2.2
     static let remDepth: Double = 0.0
 
-    static let algorithmVersion: Int = 12
+    /// 13: baselines moved from per-sample medians to per-minute ones. Every
+    /// stored night was scored against a baseline weighted by sampling density,
+    /// so they are rebuilt rather than left showing numbers this pipeline would
+    /// not produce.
+    static let algorithmVersion: Int = 13
     /// Shortest run that can stand as its own stage. Sleep changes state on
     /// the scale of minutes; anything briefer is a turn or a dropped estimate,
     /// and leaving it in inflates every count derived from the hypnogram.
@@ -270,6 +274,47 @@ struct SleepWindow: Equatable {
 /// stretch would outscore every waking rest and wreck the hour-tolerance the
 /// day score depends on. This detector wants exactly the stretch the anchor
 /// throws away.
+// MARK: - Time-weighted medians
+//
+// Every gate below is relative to "this recording's own median", and that median
+// used to be taken over samples. The app ticks every few seconds while a session
+// is running and every 30 s in the background, so a median over samples is a
+// median over whatever produced the most *ticks* rather than over whatever took
+// the most *time*.
+//
+// On the night that prompted this, 88 minutes of meditation either side of eight
+// hours of sleep carried 61.5% of the run's samples. The run's median motion was
+// therefore the meditation's, which sits above `impossibleSleepMotion`, so
+// `trimmedToSleep` discarded the entire night — no boundaries, no stages, nothing
+// shown to the sleeper at all. The same skew put median heart rate 6.5 bpm above
+// the sleeping level, lifting every wake gate with it, and left
+// `outOfBedMotionMultiple` multiplying an *awake* median by eight, which is past
+// anything a person does without leaving the room.
+//
+// Collapsing to one value a minute before taking the median makes an hour count
+// as an hour, whatever the cadence happened to be while it passed.
+enum TimeWeightedMedian {
+
+    /// Median of the per-minute medians. Nil when no point carries the value.
+    static func of(_ points: [MetricsHistoryPoint],
+                   _ value: (MetricsHistoryPoint) -> Float?) -> Float? {
+        var byMinute: [Int: [Float]] = [:]
+        for point in points {
+            guard let v = value(point) else { continue }
+            let minute = Int(floor(point.timestamp.timeIntervalSinceReferenceDate / 60))
+            byMinute[minute, default: []].append(v)
+        }
+        guard !byMinute.isEmpty else { return nil }
+        let perMinute = byMinute.values
+            .map { bucket -> Float in
+                let sorted = bucket.sorted()
+                return sorted[sorted.count / 2]
+            }
+            .sorted()
+        return perMinute[perMinute.count / 2]
+    }
+}
+
 enum SleepDetector {
 
     /// Every night in a long recording, one pass.
@@ -380,9 +425,7 @@ enum SleepDetector {
     }
 
     private static func medianHR(_ points: [MetricsHistoryPoint]) -> Float? {
-        let hrs = points.compactMap(\.meanBPM).sorted()
-        guard !hrs.isEmpty else { return nil }
-        return hrs[hrs.count / 2]
+        TimeWeightedMedian.of(points) { $0.meanBPM }
     }
 
     /// Cuts the waking hours off both ends of a run.
@@ -406,8 +449,7 @@ enum SleepDetector {
     /// is a wake bout inside one night, not the end of it — and those bouts are
     /// what the continuity section is there to count.
     private static func trimmedToSleep(_ run: [MetricsHistoryPoint]) -> [MetricsHistoryPoint]? {
-        let motions = run.compactMap(\.motion).sorted()
-        let medianMotion = motions.isEmpty ? nil : motions[motions.count / 2]
+        let medianMotion = TimeWeightedMedian.of(run) { $0.motion }
         if let medianMotion, medianMotion > SleepThresholds.impossibleSleepMotion { return nil }
         let stages = SleepStages.classify(run)
         let sustained = sustainedSleepRuns(stages, points: run)
