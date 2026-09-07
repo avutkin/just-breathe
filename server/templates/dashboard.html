@@ -820,9 +820,9 @@
       ["Activity", name], ["When", fmtTime(a.started_at)],
       ["Duration", dur == null ? "—" : fmt(dur, 0) + " <small>min</small>"],
     ].map(([l, v]) => `<div class="kpi"><div class="label">${l}</div><div class="value">${v}</div></div>`).join("")
-      + (a.sleep ? nightTile(a.sleep) : impactTile(a.impact));
-    $("#night").style.display = a.sleep ? "" : "none";
-    if (a.sleep) renderNight(a);
+      + (a.activity_type === "Sleep" ? nightTile(a.sleep) : impactTile(a.impact));
+    $("#night").style.display = a.activity_type === "Sleep" ? "" : "none";
+    if (a.activity_type === "Sleep") renderNight(a);
     // The two % columns are benefit-signed and come from the server with the
     // app's direction rules, so the table agrees with the cards and the score.
     const head = "<tr><th>Metric</th><th>Before</th><th>During</th><th>After</th><th>During vs before</th><th>After vs before</th><th>In score</th></tr>";
@@ -867,7 +867,9 @@
 
   // A night's headline is its score — the app's five-section composite —
   // never the restorative score, which is built for a practice.
+  const NIGHT_NOT_SYNCED = "recorded by an app build from before nights synced — the score, stages and position arrive once this phone runs the current build";
   function nightTile(n) {
+    if (!n) return `<div class="kpi"><div class="label">Night score</div><div class="value">—</div><div class="note">${NIGHT_NOT_SYNCED}</div></div>`;
     const present = SLEEP_SECTIONS.filter(([k]) => n.sections && n.sections[k] != null).length;
     const value = n.score == null ? "—" : `${n.score}<small>/100 night score</small>`;
     const note = n.score == null ? `${present} of 5 sections · needs 2 to score`
@@ -909,6 +911,20 @@
 
   function renderNight(a) {
     const n = a.sleep;
+    if (!n) {
+      // The window and the synced ticks are all there is. Say what is missing
+      // and why rather than leaving four empty headings.
+      const inBed = (a.started_at && a.ended_at) ? Math.round((new Date(a.ended_at) - new Date(a.started_at)) / 60000) : null;
+      $("#night-sub").textContent = `— ${clockOf(a.started_at)} → ${a.ended_at ? clockOf(a.ended_at) : "…"}`;
+      $("#night-hero").innerHTML = `<div class="night-hero">
+        <div><div class="big"><small>In bed</small>${hm(inBed)}</div><div class="sub2">time asleep not in this upload</div></div>
+        <div class="clock"><span class="k">asleep</span><b>${clockOf(a.started_at)}</b></div>
+        <div class="clock"><span class="k">woke</span><b>${a.ended_at ? clockOf(a.ended_at) : "—"}</b></div>
+        <div class="clock" style="flex-basis:100%;color:var(--dim)">${NIGHT_NOT_SYNCED}. Pulse, HRV, breathing${" and movement"} below come from the synced ticks.</div>
+      </div>`;
+      ["#night-arith", "#night-sections", "#night-stages", "#night-positions"].forEach(id => $(id).innerHTML = `<div class="gloss">not in this upload</div>`);
+      return;
+    }
     const inBed = n.in_bed_min ?? ((a.started_at && a.ended_at) ? Math.round((new Date(a.ended_at) - new Date(a.started_at)) / 60000) : null);
     const eff = (n.asleep_min != null && inBed) ? Math.round(n.asleep_min / inBed * 100) : null;
     $("#night-sub").textContent = `— ${clockOf(a.started_at)} → ${a.ended_at ? clockOf(a.ended_at) : "…"}`;
@@ -967,7 +983,7 @@
   // HRV and breathing from the server's tick stream, on one shared clock.
   // No movement lane — motion is not synced.
   function drawMontage(a, pts) {
-    const svg = $("#montage"), n = a.sleep;
+    const svg = $("#montage"), n = a.sleep || {};
     const W = Math.max(320, Math.round(svg.clientWidth || 900));
     const x0 = new Date(a.started_at).getTime(), x1 = new Date(a.ended_at || a.started_at).getTime();
     const span = Math.max(1, x1 - x0);
@@ -997,7 +1013,7 @@
         el += `<line class="stage-conn" x1="${px(r.s).toFixed(1)}" y1="${ya}" x2="${px(r.s).toFixed(1)}" y2="${yb}"/>`;
       }
     });
-    if (!runs.length) el += `<text class="clock" x="${L}" y="${y + 20}">no hypnogram in this upload</text>`;
+    if (!runs.length) el += `<text class="clock" x="${L}" y="${y + 20}">${a.sleep ? "no hypnogram in this upload" : "stages are staged on the phone and arrive with the night once it runs the current app build"}</text>`;
     y += ribbonH + 14;
 
     // Position — gravity-vector bands.
@@ -1010,9 +1026,33 @@
         if (w > 74) el += `<text class="pos-label" x="${(px(b.s) + w / 2).toFixed(1)}" y="${y + 17}" text-anchor="middle" fill="${b.p === "Supine" || b.p === "Prone" ? "#f4f4f4" : "#111"}">${esc(b.p.toUpperCase())}</text>`;
       });
     } else {
-      el += `<text class="clock" x="${L}" y="${y + 17}">${n.position_recorded === false ? "not recorded on this night" : "no stretch held long enough to draw"}</text>`;
+      el += `<text class="clock" x="${L}" y="${y + 17}">${!a.sleep ? "position arrives with the night from the current app build" : n.position_recorded === false ? "not recorded on this night" : "no stretch held long enough to draw"}</text>`;
     }
     y += 26 + 16;
+
+    // Movement — the accelerometer strip, from the synced ticks. Like the
+    // app: ticks that stand out from this night's own stillness (twice the
+    // median, never under 8 mg), each drawn to how loud it was.
+    const motion = pts.filter(s => s.motion_max != null && isFinite(s.motion_max))
+                      .map(s => ({ t: new Date(s.ts).getTime(), avg: s.motion, max: s.motion_max }))
+                      .filter(p => p.t >= x0 && p.t <= x1);
+    el += laneHead(y, "Movement", "accelerometer", "");
+    const MH = 28;
+    if (motion.length) {
+      const meds = motion.map(p => p.avg).filter(v => v != null).sort((p, q) => p - q);
+      const threshold = Math.max((meds[Math.floor(meds.length / 2)] || 0) * 2, 8);
+      const loud = motion.filter(p => p.max > threshold);
+      el += shadeWake(y, MH);
+      el += `<line class="grid" x1="${L}" y1="${y + MH}" x2="${W - R}" y2="${y + MH}"/>`;
+      loud.forEach(p => {
+        const h = Math.max(3, Math.min(1, p.max / (threshold * 4)) * (MH - 4));
+        el += `<rect x="${(px(p.t) - 1).toFixed(1)}" y="${(y + MH - h).toFixed(1)}" width="2" height="${h.toFixed(1)}" fill="var(--dim)" opacity=".8"/>`;
+      });
+      el += `<text class="clock" x="${W - R}" y="${y + 10}" text-anchor="end">${loud.length} moves · over ${threshold.toFixed(0)} mg</text>`;
+    } else {
+      el += `<text class="clock" x="${L}" y="${y + 17}">movement is not in this phone's synced ticks yet — it syncs from the current app build</text>`;
+    }
+    y += MH + 16;
 
     // Metric lanes from the tick stream, clipped to the night.
     const series = (col) => pts.map(s => ({ t: new Date(s.ts).getTime(), v: s[col] }))
@@ -1062,7 +1102,7 @@
     svg.setAttribute("viewBox", `0 0 ${W} ${y + 32}`);
     svg.style.height = (y + 32) + "px";
     svg.innerHTML = el;
-    $("#montage-note").textContent = "Three states are measured, not four: the light/deep boundary is the one a cardiac signal places worst. Wake is the least reliable channel any wearable has — treat the awake minutes as approximate. The hypnogram and position come from the app's own record of the night; pulse, HRV and breathing are the synced ticks, bucketed.";
+    $("#montage-note").textContent = "Three states are measured, not four: the light/deep boundary is the one a cardiac signal places worst. Wake is the least reliable channel any wearable has — treat the awake minutes as approximate. The hypnogram and position come from the app's own record of the night; pulse, HRV, breathing and movement are the synced ticks, bucketed to a minute.";
   }
 
   // One card per metric: three bars — before, during, after — so the shape of
@@ -1077,7 +1117,7 @@
   async function drawActivityCharts(a) {
     const host = $("#activity-charts");
     let d;
-    try { d = await api(`activities/${a.id}/series`); }
+    try { d = await api(`activities/${a.id}/series${a.activity_type === "Sleep" ? "?buckets=480" : ""}`); }
     catch { host.innerHTML = `<div class="empty">could not load the window series</div>`; return; }
     const pts = d.samples || [];
     if (!pts.length) {

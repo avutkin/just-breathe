@@ -741,3 +741,36 @@ async def test_an_open_tab_can_tell_the_dashboard_changed():
     assert page.headers["x-dashboard-version"] == DASHBOARD_VERSION
     assert stats.headers["x-dashboard-version"] == DASHBOARD_VERSION
     assert len(DASHBOARD_VERSION) == 12
+
+
+@pytest.mark.asyncio
+async def test_a_nights_series_carries_movement_at_the_resolution_asked():
+    """The montage's movement lane reads the loudest tick per bucket, and a
+    night asks for finer buckets than a sit — a minute of turning over must
+    not vanish into a four-minute average. Requires a database."""
+    import uuid
+    from datetime import datetime, timezone, timedelta
+    dev = f"test-night-motion-{uuid.uuid4().hex[:6]}"
+    start = datetime(2025, 7, 1, 23, 0, tzinfo=timezone.utc)
+    samples = []
+    for i in range(0, 8 * 60 * 60, 30):
+        t = start + timedelta(seconds=i)
+        samples.append({"ts": t.isoformat(), "mean_bpm": 55.0,
+                        # still all night bar one loud turn at 03:00
+                        "motion": 60.0 if i == 4 * 3600 else 4.0})
+    async with _client() as client:
+        for k in range(0, len(samples), 500):
+            r = await client.post("/v1/metrics", json={"samples": samples[k:k + 500]}, headers={"X-User-ID": dev})
+            assert r.status_code == 200, r.text
+        up = await client.post("/activities", headers={"X-User-ID": dev}, json={
+            "id": str(uuid.uuid4()), "activity_type": "Sleep",
+            "started_at": start.isoformat(), "ended_at": (start + timedelta(hours=8)).isoformat(),
+        })
+        sid = up.json()["id"]
+        coarse = (await client.get(f"/admin/activities/{sid}/series")).json()["samples"]
+        fine = (await client.get(f"/admin/activities/{sid}/series", params={"buckets": 480})).json()["samples"]
+    assert 100 <= len(coarse) <= 125 and 400 <= len(fine) <= 490
+    loud = [s for s in fine if s["motion_max"] is not None and s["motion_max"] >= 60]
+    assert len(loud) == 1, "the one turn survives as its bucket's loudest tick"
+    assert loud[0]["motion"] < 60, "the bucket mean is not the strip's number"
+    assert all("motion_max" in s for s in coarse)
