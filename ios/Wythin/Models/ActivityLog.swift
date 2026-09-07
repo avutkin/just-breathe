@@ -201,7 +201,13 @@ final class ActivityLog {
     var sleepAsleepMinutes: Int?
     /// Sleep Regularity Index over the trailing nights available at record
     /// time. Nil until there are at least two nights to compare.
+    /// Superseded by `sleepBedtimeSDMin`. Held the Sleep Regularity Index,
+    /// which is not measurable on a device worn for a few nights at a time —
+    /// see `BedtimeConsistency`. No longer written; kept so existing stores
+    /// migrate without a schema change, and read by nothing.
     var sleepRegularity: Float?
+    /// Circular SD of sleep onset across the recorded nights, in minutes.
+    var sleepBedtimeSDMin: Double?
     /// What the detector proposed for this night, before the sleeper's
     /// correction was laid over it. Nil when the night was never corrected.
     ///

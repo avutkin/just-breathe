@@ -164,7 +164,12 @@ enum SleepThresholds {
     /// four people. Every stored night's stage split changes — most of all its
     /// REM, which was running at roughly double the adult norm — so they are
     /// rebuilt rather than left showing the old division.
-    static let algorithmVersion: Int = 15
+    /// 16: Timing is bedtime consistency, not the Sleep Regularity Index. SRI
+    /// reads a night the strap was not worn as a night spent awake, so on a
+    /// device worn for a few nights at a time it scored intermittent wear
+    /// rather than an irregular sleeper. Every stored night's timing section
+    /// changes, so they are rebuilt.
+    static let algorithmVersion: Int = 16
     /// Shortest run that can stand as its own stage. Sleep changes state on
     /// the scale of minutes; anything briefer is a turn or a dropped estimate,
     /// and leaving it in inflates every count derived from the hypnogram.
@@ -194,10 +199,6 @@ enum SleepThresholds {
     /// night, no run clears the bar and the night is not found at all. An
     /// arousal is not the end of persistent sleep; it is an event inside it.
     static let briefArousalSec: Double = 120
-    /// Regularity is a comparison between days, so it needs at least two.
-    /// Published SRI uses a trailing week; two is the floor at which the
-    /// number means anything at all, and the UI should say how many it had.
-    static let minNightsForSRI: Int = 2
     /// One section is not a night score. Mirrors the exercise model's rule
     /// that a headline needs at least two present components behind it.
     static let minSectionsForOverall: Int = 2

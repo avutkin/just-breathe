@@ -239,7 +239,11 @@ extension ActivityLog {
     private func sleepSectionDetail(_ section: SleepSection) -> String {
         switch section {
         case .timing:
-            return sleepRegularity.map { "regularity index \(Int($0))" } ?? "how steady your hours are"
+            // Stated as the spread itself rather than an index. "±40m" is a
+            // fact about your week; "regularity index 44" was a number only
+            // this app knew the meaning of.
+            return sleepBedtimeSDMin.map { "bedtime varies ±\(Int($0.rounded()))m" }
+                ?? "how steady your bedtime is"
         case .duration:
             guard let m = sleepAsleepMinutes else { return "time asleep" }
             return "\(m / 60)h \(String(format: "%02d", m % 60))m asleep"

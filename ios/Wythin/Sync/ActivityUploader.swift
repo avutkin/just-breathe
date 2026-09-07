@@ -112,7 +112,9 @@ struct SleepUploadPayload: Codable {
     let stageSummary:     String?
     let asleepMin:        Int?
     let inBedMin:         Int?
-    let regularity:       Float?
+    /// Circular SD of sleep onset, in minutes. Lower is steadier. Replaced
+    /// the Sleep Regularity Index, which a few nights of wear cannot measure.
+    let bedtimeSDMin:     Double?
     let algorithmVersion: Int?
     let readText:         String?
     let sections:         Sections
@@ -141,7 +143,8 @@ struct SleepUploadPayload: Codable {
     let correctedAt:   String?
 
     enum CodingKeys: String, CodingKey {
-        case score, arithmetic, regularity, sections, stages, positions
+        case score, arithmetic, sections, stages, positions
+        case bedtimeSDMin       = "bedtime_sd_min"
         case stageSummary       = "stage_summary"
         case asleepMin          = "asleep_min"
         case inBedMin           = "in_bed_min"
@@ -169,7 +172,7 @@ struct SleepUploadPayload: Codable {
         stageSummary     = e.sleepStageSummary
         asleepMin        = e.sleepAsleepMinutes
         inBedMin         = e.endedAt.map { Int($0.timeIntervalSince(e.startedAt) / 60) }
-        regularity       = e.sleepRegularity
+        bedtimeSDMin     = e.sleepBedtimeSDMin
         algorithmVersion = e.sleepAlgorithmVersion
         readText         = e.sleepReadText
         sections = Sections(timing: e.sleepTiming, duration: e.sleepDuration,
@@ -199,7 +202,7 @@ struct SleepUploadPayload: Codable {
         e.sleepScoreArithmetic = arithmetic
         e.sleepStageSummary    = stageSummary
         e.sleepAsleepMinutes   = asleepMin
-        e.sleepRegularity      = regularity
+        e.sleepBedtimeSDMin    = bedtimeSDMin
         e.sleepAlgorithmVersion = algorithmVersion
         e.sleepReadText        = readText
         e.sleepTiming = sections.timing; e.sleepDuration = sections.duration

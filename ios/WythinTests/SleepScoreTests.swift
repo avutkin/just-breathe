@@ -6,7 +6,7 @@ final class SleepScoreTests: XCTestCase {
     /// A settled night: on-time, long enough, unbroken, a deep well-placed
     /// heart-rate nadir, and steady breathing.
     private func settled() -> SleepScoreInput {
-        SleepScoreInput(regularityIndex: 84,
+        SleepScoreInput(bedtimeSDMin: 30,
                         asleepSec: 7.33 * 3600,
                         needSec: 7.75 * 3600,
                         wakeBouts: 3,
@@ -47,7 +47,7 @@ final class SleepScoreTests: XCTestCase {
         // No trailing nights yet, so there is no regularity index. Treating
         // that as a zero would punish the user for the app's own youth.
         var input = settled()
-        input.regularityIndex = nil
+        input.bedtimeSDMin = nil
         let s = SleepScore.compute(input)
 
         XCTAssertNil(s.sections[.timing])
@@ -80,7 +80,7 @@ final class SleepScoreTests: XCTestCase {
 
     func testRequiresTwoSectionsForAnOverall() {
         var input = settled()
-        input.regularityIndex = nil
+        input.bedtimeSDMin = nil
         input.longestUnbrokenSec = nil
         input.hrNadirDip = nil
         input.steadyFraction = nil

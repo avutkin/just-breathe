@@ -286,7 +286,7 @@ enum SleepRecorder {
         apply(detail: detailed, to: log, points: nightPoints, tickSec: tick)
         let scored = score(night: night, points: nightPoints, existing: existing)
         apply(score: scored.score, to: log)
-        log.sleepRegularity = SleepRegularity.index(of: priorWindows(existing) + [night])
+        log.sleepBedtimeSDMin = BedtimeConsistency.onsetSDMinutes(of: priorWindows(existing) + [night])
         log.sleepDetailJSON = SleepNightDetail(points: nightPoints, stages: detailed,
                                                continuity: scored.continuity).json
 
@@ -419,7 +419,7 @@ enum SleepRecorder {
             .compactMap { log in log.endedAt.map { SleepWindow(startedAt: log.startedAt, endedAt: $0) } }
 
         let input = SleepScoreInput(
-            regularityIndex: SleepRegularity.index(of: priorWindows + [night]),
+            bedtimeSDMin: BedtimeConsistency.onsetSDMinutes(of: priorWindows + [night]),
             asleepSec: asleepSec,
             needSec: SleepThresholds.defaultNeedSec,
             wakeBouts: bouts,

@@ -48,7 +48,8 @@ struct SleepNightPayload: Codable, Equatable {
     let stages:         SleepStagePayload?
     let wakeBouts:      Int?
     let longestWakeMin: Int?
-    let regularity:     Double?
+    /// Circular SD of sleep onset, in minutes. Lower is steadier.
+    let bedtimeSDMin:   Double?
     /// False means the strap stored no orientation on this night — NOT that the
     /// person never lay on their back. The server states the distinction out
     /// loud rather than letting an omission imply the second.
@@ -60,7 +61,8 @@ struct SleepNightPayload: Codable, Equatable {
     let lowestHRAt:     String?
 
     enum CodingKeys: String, CodingKey {
-        case bedtime, score, stages, regularity, positions, arcs
+        case bedtime, score, stages, positions, arcs
+        case bedtimeSDMin = "bedtime_sd_min"
         case wakeTime         = "wake_time"
         case inBedMin         = "in_bed_min"
         case asleepMin        = "asleep_min"
@@ -130,7 +132,7 @@ extension SleepInsightPayload {
                 n3:   night.stageMinutes[.n3]),
             wakeBouts:      wakeBands.count,
             longestWakeMin: longestWake,
-            regularity:     entry.sleepRegularity.map(Double.init),
+            bedtimeSDMin:   entry.sleepBedtimeSDMin,
             positionRecorded: night.positionTicks > 0,
             positions:      positions.isEmpty ? nil : positions,
             arcs:           Self.arcs(night),

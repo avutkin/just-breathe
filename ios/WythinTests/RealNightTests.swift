@@ -126,7 +126,7 @@ final class RealNightTests: XCTestCase {
         // causally harmful while long sleep is a marker of illness rather than
         // a cause, and says in terms: do not tell users that sleeping long is
         // harmful.
-        var over = SleepScoreInput(regularityIndex: nil, asleepSec: 10.1 * 3600,
+        var over = SleepScoreInput(bedtimeSDMin: nil, asleepSec: 10.1 * 3600,
                                    needSec: 7.75 * 3600, wakeBouts: 3,
                                    longestUnbrokenSec: 3 * 3600, hrNadirDip: 14,
                                    hrNadirFraction: 0.45, meanRMSSD: 52, steadyFraction: 0.9)

@@ -52,7 +52,9 @@ enum SleepSection: String, CaseIterable, Codable {
 /// Everything the score needs, already measured. Optional throughout: a
 /// section with no input is **absent**, never zero.
 struct SleepScoreInput {
-    var regularityIndex: Float?     // 0–100, needs trailing nights
+    /// Circular SD of sleep onset, in minutes. Lower is steadier. Needs three
+    /// nights, which need not be consecutive — see `BedtimeConsistency`.
+    var bedtimeSDMin: Double?
     var asleepSec: Double?
     var needSec: Double             // this wearer's own need, not a population figure
     var wakeBouts: Int?
@@ -77,8 +79,13 @@ struct SleepScore {
     static func compute(_ input: SleepScoreInput) -> SleepScore {
         var sections: [SleepSection: Int] = [:]
 
-        if let sri = input.regularityIndex {
-            sections[.timing] = round(ramp(Double(sri), worst: 55, best: 90))
+        if let sd = input.bedtimeSDMin {
+            // Negated so the ramp still runs worst→best: less spread scores
+            // higher. 20 minutes is about as tight as a real bedtime gets and
+            // is scored as steady; beyond 110 the times are far enough apart
+            // that they describe different schedules rather than one with
+            // variation, and there is nothing left to distinguish.
+            sections[.timing] = round(ramp(-sd, worst: -110, best: -20))
         }
         if let asleep = input.asleepSec {
             // Asymmetric, deliberately. Symmetric scoring punished ten hours
