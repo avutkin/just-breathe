@@ -123,7 +123,7 @@ struct SleepMetricReadout: View {
 
     /// Stages in depth order, not in the order the night happened to visit
     /// them, so the eye reads a ramp rather than a shuffle.
-    private var stageRows: [(SleepStageDetail, Double)] {
+    private var stageRows: [(SleepStageDetail, PreparedNight.StageReading)] {
         let per = night.byStage[def.id] ?? [:]
         return SleepStageDetail.allCases.compactMap { stage in
             per[stage].map { (stage, $0) }
@@ -177,12 +177,12 @@ struct SleepMetricReadout: View {
     private func stageBars(_ e: PreparedNight.MetricExtremes) -> some View {
         // The bars share the axis of the readings above, widened if a stage
         // median falls outside the asleep range — awake often does.
-        let values = stageRows.map(\.1)
+        let values = stageRows.map(\.1.value)
         let lo = min(e.low, values.min() ?? e.low)
         let hi = max(e.high, values.max() ?? e.high)
         let span = max(hi - lo, 0.000001)
         return VStack(alignment: .leading, spacing: 4) {
-            ForEach(stageRows, id: \.0) { stage, value in
+            ForEach(stageRows, id: \.0) { stage, reading in
                 HStack(spacing: 6) {
                     Text(stage.label)
                         .font(.system(size: 9))
@@ -191,17 +191,29 @@ struct SleepMetricReadout: View {
                     GeometryReader { geo in
                         Capsule()
                             .fill(stage.colour)
-                            .frame(width: max(3, geo.size.width * ((value - lo) / span)),
+                            .frame(width: max(3, geo.size.width * ((reading.value - lo) / span)),
                                    height: 6)
                             .frame(maxHeight: .infinity, alignment: .center)
                     }
                     .frame(height: 8)
-                    Text(def.format(value))
+                    Text(def.format(reading.value))
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(Theme.text)
                         .frame(width: 42, alignment: .trailing)
+                    // The hour is the other half of the reading. Without it
+                    // these bars get compared as though the stages happened at
+                    // the same time of night, and they never do.
+                    Text(Self.clock.string(from: reading.at))
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(Theme.dim.opacity(0.8))
+                        .frame(width: 38, alignment: .trailing)
                 }
             }
+            Text("mostly at that hour — your pulse follows the night's own curve, so compare the hours before you compare the stages")
+                .font(.system(size: 9))
+                .foregroundStyle(Theme.dim.opacity(0.7))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 1)
         }
     }
 }
@@ -255,7 +267,7 @@ enum SleepHighlights {
         // The one the sleeper can act on, and the contrast they will notice.
         let breath = def(.breathBPM)
         if let perStage = night.byStage[breath.id],
-           let deep = perStage[.n3], let wake = perStage[.wake] {
+           let deep = perStage[.n3]?.value, let wake = perStage[.wake]?.value {
             let faster = deep > wake
             out.append(SleepHighlight(
                 id: "breath",

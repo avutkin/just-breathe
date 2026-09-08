@@ -124,6 +124,20 @@ final class PreparedNightTests: XCTestCase {
         }
     }
 
+    /// The hour beside each bar is what stops the bars being read as a
+    /// stage-to-stage comparison they cannot support. It has to fall inside
+    /// the stretch it claims to describe.
+    func testEachStageReadingCarriesAnHourInsideTheNight() {
+        let prepared = PreparedNight(points: night)
+        let first = night.first!.timestamp, last = night.last!.timestamp
+        for (_, perStage) in prepared.byStage {
+            for (_, reading) in perStage {
+                XCTAssertGreaterThanOrEqual(reading.at, first)
+                XCTAssertLessThanOrEqual(reading.at, last)
+            }
+        }
+    }
+
     func testAnEmptyNightHasNothingToRead() {
         let prepared = PreparedNight(points: [])
         XCTAssertTrue(prepared.extremes.isEmpty)

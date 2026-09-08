@@ -47,12 +47,26 @@ struct PreparedNight: Sendable {
     /// bug this file exists to have fixed once.
     let extremes: [String: MetricExtremes]
 
-    /// Metric id → stage → the median the body held in that stage.
+    /// Metric id → stage → the median the body held in that stage, and when in
+    /// the night that stage mostly happened.
     ///
-    /// The contrast between stages is the reading, not the night average: a
-    /// breath rate that runs faster in deep sleep than awake is a fact about
-    /// this person's night, and a single mean hides it completely.
-    let byStage: [String: [SleepStageDetail: Double]]
+    /// The clock time is not decoration, it is the reading's other half.
+    /// Measured across seven real nights, every metric's stage ordering is
+    /// dominated by WHEN each stage sat rather than by the stage itself: deep
+    /// sleep is front-loaded and lands before the circadian trough, while the
+    /// awake bouts are mostly arousals near morning, at the bottom of it. So a
+    /// night can honestly show a higher pulse in N3 than awake — not because
+    /// deep sleep raised it, but because N3 happened at 23:40 and the waking
+    /// happened at 05:20. Showing the medians without the hours invites a
+    /// comparison the numbers cannot support.
+    let byStage: [String: [SleepStageDetail: StageReading]]
+
+    struct StageReading: Sendable, Equatable {
+        let value: Double
+        /// The middle of the time this stage occupied — a median, so one late
+        /// outlying bout cannot drag the hour it reports.
+        let at: Date
+    }
 
     struct MetricExtremes: Sendable, Equatable {
         let low: Double
@@ -239,18 +253,20 @@ struct PreparedNight: Sendable {
     /// ticks of N1 is not a reading of anything, and a bar drawn from it would
     /// invite exactly the comparison it cannot support.
     static func buildByStage(_ points: [MetricsHistoryPoint],
-                             stages: [SleepStageDetail]) -> [String: [SleepStageDetail: Double]] {
+                             stages: [SleepStageDetail]) -> [String: [SleepStageDetail: StageReading]] {
         guard stages.count == points.count else { return [:] }
-        var out: [String: [SleepStageDetail: Double]] = [:]
+        var out: [String: [SleepStageDetail: StageReading]] = [:]
         for def in activityMetricDefs {
-            var perStage: [SleepStageDetail: Double] = [:]
+            var perStage: [SleepStageDetail: StageReading] = [:]
             for stage in SleepStageDetail.allCases {
-                let values = points.indices
-                    .filter { stages[$0] == stage }
-                    .compactMap { def.extract(points[$0]) }
-                    .sorted()
-                guard values.count >= minStageTicks else { continue }
-                perStage[stage] = values[values.count / 2]
+                let ticks = points.indices.filter {
+                    stages[$0] == stage && def.extract(points[$0]) != nil
+                }
+                guard ticks.count >= minStageTicks else { continue }
+                let values = ticks.compactMap { def.extract(points[$0]) }.sorted()
+                let times = ticks.map { points[$0].timestamp }.sorted()
+                perStage[stage] = StageReading(value: values[values.count / 2],
+                                               at: times[times.count / 2])
             }
             if !perStage.isEmpty { out[def.id] = perStage }
         }
