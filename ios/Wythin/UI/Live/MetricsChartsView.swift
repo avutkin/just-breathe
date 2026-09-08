@@ -219,6 +219,11 @@ struct MetricInfoSheet: View {
 ///   shares one clock with the hypnogram above it.
 
 struct MetricChartCard: View {
+    /// Plot height. Defaults to the Live screen's 130, where one chart is the
+    /// subject of the screen. The sleep sections pass something shorter: four
+    /// traces stacked under one heading is a different reading task, and at
+    /// full height the group scrolls past the score it is there to explain.
+    let chartHeight:   CGFloat
     let title:         String   // consumer name — shown in white
     let technicalName: String   // short technical name — shown in gray after title
     let technicalFull: String   // spelled-out technical name — its own line under the title
@@ -259,7 +264,7 @@ struct MetricChartCard: View {
     @State private var showInfo = false
 
     init(title: String, technicalName: String = "", technicalFull: String = "",
-         subtitle: String, yLabel: String,
+         subtitle: String, yLabel: String, chartHeight: CGFloat = 130,
          color: Color, windows: [TimeWindow], refs: [RefLine],
          yDomain: ClosedRange<Double>,
          win: TimeWindow,
@@ -276,6 +281,7 @@ struct MetricChartCard: View {
          date: Date,
          bucketTransform: ((Double) -> Double)? = nil,
          extract: @escaping (MetricsHistoryPoint) -> Double?) {
+        self.chartHeight     = chartHeight
         self.title           = title
         self.technicalName   = technicalName
         self.technicalFull   = technicalFull
@@ -766,7 +772,7 @@ struct MetricChartCard: View {
             .chartPlotStyle { plot in
                 plot.background(Color.black.opacity(0.2))
             }
-            .frame(height: 130)
+            .frame(height: chartHeight)
         }
     }
 

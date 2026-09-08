@@ -220,7 +220,7 @@ extension ActivityLog {
     /// its input was not measured.
     var sleepIndexSlots: [(name: String, index: ScoredIndex?, whenEmpty: String)] {
         [
-            ("Timing", sleepSection(.timing, sleepTiming), "needs a second night"),
+            ("Timing", sleepSection(.timing, sleepTiming), "needs three nights"),
             ("Duration", sleepSection(.duration, sleepDuration), "no sleep time"),
             ("Continuity", sleepSection(.continuity, sleepContinuity), "no stages"),
             ("Autonomic", sleepSection(.autonomic, sleepAutonomic), "no heart rate"),
@@ -245,7 +245,12 @@ extension ActivityLog {
                 ?? "how steady your bedtime is"
         case .duration:
             guard let m = sleepAsleepMinutes else { return "time asleep" }
-            return "\(m / 60)h \(String(format: "%02d", m % 60))m asleep"
+            // The target beside the total. A duration score with no target is
+            // a number out of a hundred with nothing behind it — the reader
+            // cannot tell whether eight hours was plenty or short for them.
+            let need = Int((SleepThresholds.defaultNeedSec / 60).rounded())
+            return "\(m / 60)h \(String(format: "%02d", m % 60))m of your "
+                + "\(need / 60)h \(String(format: "%02d", need % 60))m need"
         case .continuity:
             return sleepStageSummary ?? "how unbroken the night was"
         case .autonomic:

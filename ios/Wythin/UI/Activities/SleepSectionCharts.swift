@@ -124,6 +124,10 @@ struct SleepMetricTraces: View {
                     technicalName: def.techFull.isEmpty ? def.techLabel : def.techFull,
                     subtitle: def.why,
                     yLabel: def.unit,
+                    // Shorter than the Live screen's default: these arrive in
+                    // groups of up to four under one heading, and at full
+                    // height the group scrolls past the score it explains.
+                    chartHeight: 96,
                     color: colour(def),
                     windows: [],
                     refs: [],

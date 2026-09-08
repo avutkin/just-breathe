@@ -59,6 +59,46 @@ enum SleepSection: String, CaseIterable, Codable {
         case .autonomic:  return "Autonomic"
         }
     }
+
+    /// What the section measures, the evidence for weighting it, and the limit
+    /// worth knowing — the three things somebody asking "what is this number"
+    /// actually wants.
+    ///
+    /// Held here rather than in the view because it belongs beside the weight
+    /// it justifies. A weight whose reasoning lives in another file drifts away
+    /// from it, and the reasoning is the only thing making a fixed weight
+    /// honest rather than arbitrary.
+    ///
+    /// Every limit is a real one this app has, stated plainly. A section that
+    /// only explains why it is good is marketing.
+    var explanation: (measures: String, evidence: String, limit: String) {
+        switch self {
+        case .timing:
+            return (
+                "The spread of the hour you fall asleep, across every night recorded — consecutive or not.",
+                "In 60,977 people the most regular quintile carried an all-cause mortality hazard of 0.70 against the least regular. Head to head it beat duration: adding hours slept to a model that already knew your regularity added nothing measurable.",
+                "Needs three nights before it says anything, and they can be weeks apart. Below that it is absent rather than zero."
+            )
+        case .duration:
+            return (
+                "Time actually asleep, against the sleep you need.",
+                "Fourteen nights at six hours leaves you performing like someone awake for a day and a night, and the deficit keeps growing rather than levelling off. People cannot feel it — at six hours they rate themselves about as sleepy as at four, while their measured performance keeps falling.",
+                "Sleep need varies by about ±0.7 h between people and is a fixed figure here rather than yours. Sleeping longer than your need is not scored as a fault."
+            )
+        case .continuity:
+            return (
+                "The longest stretch you held, how many times it broke, and how steadily you breathed.",
+                "One four-hour block is not eight thirty-minute ones at the same total. Fragmenting sleep degrades next-day function even when the hours are unchanged.",
+                "Wake is the weakest thing any wearable measures — specificity runs 29–52% — and arousals shorter than a minute are smoothed away entirely. Read this as a description of the night, not a count."
+            )
+        case .autonomic:
+            return (
+                "How far your pulse fell overnight and when it bottomed out, then your vagal tone against your own recent nights.",
+                "Of every heart-rate-variability measure tested against cardiovascular events in 1,784 people, only deceleration capacity and heart-rate fragmentation survived correction — every classical HRV number did not. So DC carries more of this than RMSSD does.",
+                "Vagal tone is read inside quiet sleep only: it drops through REM, so a whole-night average is partly a measure of how much REM you had. Needs a few nights before there is a baseline to compare against."
+            )
+        }
+    }
 }
 
 // MARK: - Input

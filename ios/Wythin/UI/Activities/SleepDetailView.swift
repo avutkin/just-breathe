@@ -25,6 +25,8 @@ struct SleepDetailView: View {
     /// movement strip and each section's traces. Owned here now that they are
     /// separate views rather than one montage.
     @State private var selectedX: Date?
+    /// Which section rows are open. Closed by default.
+    @State private var expanded: Set<SleepSection> = []
 
     private func hm(_ minutes: Int) -> String {
         "\(minutes / 60)h \(String(format: "%02d", minutes % 60))m"
@@ -283,41 +285,93 @@ struct SleepDetailView: View {
         }
     }
 
+    /// Each row opens to say what it measures, what the evidence for weighting
+    /// it is, and where it is weak. Closed by default: the score is the answer,
+    /// and five paragraphs above it would bury the thing being explained.
     private var sections: some View {
         card("SECTIONS") {
             VStack(spacing: 0) {
-                ForEach(Array(entry.indexSlots.enumerated()), id: \.offset) { _, slot in
-                    HStack(alignment: .top, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(slot.name)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Theme.text)
-                            Text(slot.index?.detail ?? slot.whenEmpty)
-                                .font(.system(size: 11))
-                                .foregroundStyle(Theme.dim)
-                        }
-                        Spacer()
-                        if let index = slot.index {
-                            VStack(alignment: .trailing, spacing: 1) {
-                                Text("\(index.value)")
-                                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(Theme.text)
-                                Text(index.verdict)
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(Theme.dim)
-                            }
-                        } else {
-                            // Absent, not zero. A section with no input has not
-                            // been measured; showing 0 would read as a verdict.
-                            Text("not measured")
-                                .font(.system(size: 10, design: .monospaced))
-                                .foregroundStyle(Theme.dim)
-                        }
-                    }
-                    .padding(.vertical, 9)
+                ForEach(Array(zip(entry.indexSlots, SleepSection.allCases)), id: \.1) { slot, section in
+                    sectionRow(slot, section)
                     Divider().opacity(0.25)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func sectionRow(_ slot: (name: String, index: ScoredIndex?, whenEmpty: String),
+                            _ section: SleepSection) -> some View {
+        let open = expanded.contains(section)
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    if open { expanded.remove(section) } else { expanded.insert(section) }
+                }
+            } label: {
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 5) {
+                            Text(slot.name)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Theme.text)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(Theme.dim)
+                                .rotationEffect(.degrees(open ? 180 : 0))
+                        }
+                        Text(slot.index?.detail ?? slot.whenEmpty)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.dim)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer()
+                    if let index = slot.index {
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text("\(index.value)")
+                                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                .foregroundStyle(Theme.text)
+                            Text(index.verdict)
+                                .font(.system(size: 9))
+                                .foregroundStyle(Theme.dim)
+                        }
+                    } else {
+                        // Absent, not zero. A section with no input has not
+                        // been measured; showing 0 would read as a verdict.
+                        Text("not measured")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(Theme.dim)
+                    }
+                }
+                .padding(.vertical, 9)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if open {
+                VStack(alignment: .leading, spacing: 8) {
+                    explainRow("MEASURES", section.explanation.measures)
+                    explainRow("WHY IT COUNTS", section.explanation.evidence)
+                    explainRow("WHERE IT IS WEAK", section.explanation.limit)
+                    Text("Weighted \(Int(section.weight * 100))% of the night score.")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(Theme.dim)
+                }
+                .padding(.bottom, 12)
+            }
+        }
+    }
+
+    private func explainRow(_ label: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                .tracking(0.6)
+                .foregroundStyle(Theme.dim.opacity(0.8))
+            Text(body)
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.dim)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
