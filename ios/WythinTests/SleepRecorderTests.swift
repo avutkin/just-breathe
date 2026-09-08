@@ -143,6 +143,37 @@ final class SleepRecorderTests: XCTestCase {
                         "breath rate was recorded, so steadiness feeds continuity")
     }
 
+    func testAWakeBoutIsTimedByTheClockNotByHowDenselyItWasSampled() {
+        // A night sampled every 30 s, with one twelve-minute stretch at the
+        // foreground cadence of 2 s in which the sleeper is plainly awake.
+        // Ticks × the median interval made that bout 360 × 30 s = three hours;
+        // it was twelve minutes.
+        let ctx = ModelContext(container)
+        let start = at(20, 23, 10)
+        var t = start
+        let end = start.addingTimeInterval(7.5 * 3600)
+        let wakeFrom = start.addingTimeInterval(3 * 3600), wakeTo = wakeFrom.addingTimeInterval(12 * 60)
+        while t < end {
+            let awake = t >= wakeFrom && t < wakeTo
+            let f = t.timeIntervalSince(start) / (7.5 * 3600)
+            let bowl = exp(-pow(f - 0.45, 2) / (2 * 0.11))
+            ctx.insert(HRVSample(anchorTestTimestamp: t,
+                                 meanBPM: Float(62 - 14 * bowl) + (awake ? 20 : 0),
+                                 vti: 3.9, rmssd: awake ? 20 : 49, sdnn: 58, dc: 8, pip: 45, dfa1: 1.0,
+                                 breathBPM: 13, motion: awake ? 60 : 6,
+                                 signalQuality: 0.97, rrInvalidRate: 0.01, ecgQualityTier: 2))
+            t = t.addingTimeInterval(awake ? 2 : 30)
+        }
+        SleepRecorder.recordIfDue(context: ctx, now: at(21, 8))
+        guard let night = sleepLogs(ctx).first,
+              let detail = SleepNightDetail(json: night.sleepDetailJSON) else { return XCTFail("no night") }
+        XCTAssertLessThanOrEqual(detail.longestWakeMin, (night.sleepAwakeMinutes ?? 0) + 2,
+                                 "a single bout cannot be longer than all the wake in the night")
+        XCTAssertLessThan(detail.longestWakeMin, 30, "twelve minutes awake, not three hours")
+        XCTAssertLessThanOrEqual(detail.longestUnbrokenMin, (night.sleepAsleepMinutes ?? 0) + 2,
+                                 "the longest stretch cannot exceed the sleep it is part of")
+    }
+
     func testContinuityIsStillScoredWithoutABreathChannel() {
         // The principle the previous test was protecting, on a case where the
         // input genuinely is missing. Zero would read as "your breathing was

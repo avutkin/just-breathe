@@ -335,6 +335,23 @@ enum SleepRecorder {
         return total
     }
 
+    /// The longest unbroken run of `mask`, in the same gap-credited seconds
+    /// `seconds(where:)` counts — so a run and the total it is part of can
+    /// never disagree about how long a minute is.
+    static func longestRunSeconds(where mask: [Bool], points: [MetricsHistoryPoint]) -> Double {
+        guard mask.count == points.count, points.count > 1 else { return 0 }
+        var best = 0.0, run = 0.0
+        for i in points.indices {
+            guard mask[i] else { run = 0; continue }
+            let next = i + 1 < points.count
+                ? points[i + 1].timestamp.timeIntervalSince(points[i].timestamp)
+                : points[i].timestamp.timeIntervalSince(points[i - 1].timestamp)
+            run += min(max(next, 0), SleepThresholds.maxTickCreditSec)
+            best = max(best, run)
+        }
+        return best
+    }
+
     // MARK: - Pieces
 
     private static func tickSeconds(_ points: [MetricsHistoryPoint]) -> Double {
@@ -444,14 +461,13 @@ enum SleepRecorder {
         for i in stages.indices where i > 0 {
             if stages[i] == .wake && stages[i - 1] != .wake { bouts += 1 }
         }
-        var longest = 0, run = 0
-        for s in stages {
-            if s == .wake { run = 0 } else { run += 1; longest = max(longest, run) }
-        }
-        var longestWake = 0, wakeRun = 0
-        for s in stages {
-            if s == .wake { wakeRun += 1; longestWake = max(longestWake, wakeRun) } else { wakeRun = 0 }
-        }
+        // In gap-credited seconds, the clock every minute on the night screen
+        // is counted in — not ticks × the median interval. That read 116
+        // minutes of wake inside a night with 87 awake in total, because the
+        // bout fell in a stretch sampled fifteen times denser than the
+        // night's median tick, and it fed the Continuity score the same way.
+        let longestUnbrokenSec = longestRunSeconds(where: stages.map { $0 != .wake }, points: points)
+        let longestWakeSec     = longestRunSeconds(where: stages.map { $0 == .wake }, points: points)
 
         let asleepSec = seconds(where: stages.map { $0 != .wake }, points: points)
 
@@ -466,7 +482,7 @@ enum SleepRecorder {
             asleepSec: asleepSec,
             needSec: SleepThresholds.defaultNeedSec,
             wakeBouts: bouts,
-            longestUnbrokenSec: Double(longest) * tick,
+            longestUnbrokenSec: longestUnbrokenSec,
             hrNadirDip: dip,
             hrNadirFraction: nadirAt,
             quietRMSSD: quietRMSSD,
@@ -477,8 +493,8 @@ enum SleepRecorder {
         )
         return (SleepScore.compute(input),
                 ContinuityInputs(wakeBouts: bouts,
-                                 longestUnbrokenSec: Double(longest) * tick,
-                                 longestWakeSec: Double(longestWake) * tick))
+                                 longestUnbrokenSec: longestUnbrokenSec,
+                                 longestWakeSec: longestWakeSec))
     }
 
     private static func apply(score: SleepScore, to log: ActivityLog) {

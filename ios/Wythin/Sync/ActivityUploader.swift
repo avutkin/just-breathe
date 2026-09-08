@@ -119,6 +119,14 @@ struct SleepUploadPayload: Codable {
     let readText:         String?
     let sections:         Sections
     let stages:           Stages
+    /// What each section was made of — label, value, the range it was read
+    /// against, its score and its share — keyed by section. The night screen
+    /// shows these instead of describing the section; the dashboard can too.
+    let parts:            [String: [SleepScore.Part]]?
+    /// Vagal tone inside quiet sleep, stored so the next night's baseline
+    /// survives a restore.
+    let quietRMSSD:       Float?
+    let quietDC:          Float?
 
     let wakeBouts:          Int?
     let longestUnbrokenMin: Int?
@@ -143,7 +151,9 @@ struct SleepUploadPayload: Codable {
     let correctedAt:   String?
 
     enum CodingKeys: String, CodingKey {
-        case score, arithmetic, sections, stages, positions
+        case score, arithmetic, sections, stages, positions, parts
+        case quietRMSSD         = "quiet_rmssd"
+        case quietDC            = "quiet_dc"
         case bedtimeSDMin       = "bedtime_sd_min"
         case stageSummary       = "stage_summary"
         case asleepMin          = "asleep_min"
@@ -180,6 +190,11 @@ struct SleepUploadPayload: Codable {
                             breathing: e.sleepBreathing)
         stages = Stages(wake: e.sleepAwakeMinutes, rem: e.sleepREMMinutes, n1: e.sleepN1Minutes,
                         n2: e.sleepLightMinutes, n3: e.sleepDeepMinutes)
+        let stored = SleepScore.parts(fromJSON: e.sleepPartsJSON)
+        parts = stored.isEmpty ? nil
+            : Dictionary(uniqueKeysWithValues: stored.map { ($0.key.rawValue, $0.value) })
+        quietRMSSD = e.sleepQuietRMSSD
+        quietDC    = e.sleepQuietDC
         let iso = ISO8601DateFormatter()
         detectedStart = e.sleepDetectedStart.map { iso.string(from: $0) }
         detectedEnd   = e.sleepDetectedEnd.map { iso.string(from: $0) }
@@ -210,6 +225,12 @@ struct SleepUploadPayload: Codable {
         e.sleepBreathing = sections.breathing
         e.sleepAwakeMinutes = stages.wake; e.sleepREMMinutes = stages.rem; e.sleepN1Minutes = stages.n1
         e.sleepLightMinutes = stages.n2;   e.sleepDeepMinutes = stages.n3
+        if let parts {
+            let enc = JSONEncoder(); enc.outputFormatting = [.sortedKeys]
+            e.sleepPartsJSON = (try? enc.encode(parts)).flatMap { String(data: $0, encoding: .utf8) }
+        }
+        e.sleepQuietRMSSD = quietRMSSD
+        e.sleepQuietDC    = quietDC
         if let wakeBouts, let longestUnbrokenMin, let longestWakeMin, let positionRecorded {
             let detail = SleepNightDetail(
                 wakeBouts: wakeBouts, longestUnbrokenMin: longestUnbrokenMin,
