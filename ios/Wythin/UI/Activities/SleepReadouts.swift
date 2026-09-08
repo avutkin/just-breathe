@@ -80,13 +80,12 @@ struct SleepNote: View {
 
 // MARK: - What one channel read
 
-/// The low, the middle and the high of one metric, and what each stage held.
+/// The low, the middle and the high of one metric, with the hours it hit them.
 ///
 /// This replaced the paragraph that used to sit under every overnight chart.
 /// The paragraph said what the metric was for; it never said what yours did.
-/// The three numbers say where the night ran, the arrow says which end is the
-/// good one, and the stage bars answer the question a single night average
-/// cannot — whether the body was calmer asleep than awake, and how much.
+/// One line says where the night ran and when it got there; the stages are a
+/// colour along the foot of the chart above it.
 struct SleepMetricReadout: View {
     let night: PreparedNight
     let def: ActivityMetricDef
@@ -121,99 +120,59 @@ struct SleepMetricReadout: View {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
     }()
 
-    /// Stages in depth order, not in the order the night happened to visit
-    /// them, so the eye reads a ramp rather than a shuffle.
-    private var stageRows: [(SleepStageDetail, PreparedNight.StageReading)] {
-        let per = night.byStage[def.id] ?? [:]
-        return SleepStageDetail.allCases.compactMap { stage in
-            per[stage].map { (stage, $0) }
+    var body: some View {
+        if let e = extremes {
+            // One line. The stage-by-stage bars that used to sit here were
+            // read as a comparison between stages, and they cannot be one:
+            // measured across seven real nights, every metric's stage ordering
+            // is dominated by WHEN each stage happened rather than by the
+            // stage itself — deep sleep is front-loaded and lands before the
+            // circadian trough, the awake bouts are arousals near morning at
+            // the bottom of it. The stages are now a colour along the foot of
+            // the chart, where the eye reads them against the trace and the
+            // clock at the same time, and no false comparison is invited.
+            // The unit rides the first number rather than trailing the line,
+            // so a wrap breaks between readings instead of orphaning "ms".
+            let unit = def.unit.isEmpty ? "" : " \(def.unit)"
+            (Text("low ").foregroundStyle(Theme.dim)
+             + Text(def.format(e.low) + unit).foregroundStyle(Theme.text)
+             + Text(" \(Self.clock.string(from: e.lowAt))").foregroundStyle(Theme.dim.opacity(0.7))
+             + Text("  ·  typical ").foregroundStyle(Theme.dim)
+             + Text(def.format(e.typical)).foregroundStyle(Theme.text)
+             + Text("  ·  high ").foregroundStyle(Theme.dim)
+             + Text(def.format(e.high)).foregroundStyle(Theme.text)
+             + Text(" \(Self.clock.string(from: e.highAt))").foregroundStyle(Theme.dim.opacity(0.7))
+             + Text(goodEnd.map { "\n\($0)" } ?? "").foregroundStyle(Theme.dim.opacity(0.75)))
+                .font(.system(size: 11, design: .monospaced))
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// What the colours along the foot of each chart mean. Once per section, not
+/// once per chart — five labels repeated under four traces is the noise the
+/// per-stage bars were removed for.
+struct SleepStageKey: View {
+    let night: PreparedNight
+
+    private var present: [SleepStageDetail] {
+        let seen = Set(night.stageRuns.map(\.stage))
+        return SleepStageDetail.allCases.filter { seen.contains($0) }
     }
 
     var body: some View {
-        if let e = extremes {
-            VStack(alignment: .leading, spacing: 9) {
-                HStack(alignment: .top, spacing: 0) {
-                    reading("LOW", e.low, at: e.lowAt)
-                    Spacer(minLength: 6)
-                    reading("TYPICAL", e.typical, at: nil)
-                    Spacer(minLength: 6)
-                    reading("HIGH", e.high, at: e.highAt)
-                }
-                if let goodEnd {
-                    Text(goodEnd)
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(Theme.dim.opacity(0.75))
-                }
-                if stageRows.count >= 2 { stageBars(e) }
-            }
-        }
-    }
-
-    private func reading(_ label: String, _ value: Double, at date: Date?) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(label)
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                .tracking(0.6)
-                .foregroundStyle(Theme.dim.opacity(0.8))
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(def.format(value))
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(Theme.text)
-                if !def.unit.isEmpty {
-                    Text(def.unit)
-                        .font(.system(size: 9))
-                        .foregroundStyle(Theme.dim)
-                }
-            }
-            Text(date.map { Self.clock.string(from: $0) } ?? "median asleep")
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundStyle(Theme.dim.opacity(0.8))
-        }
-    }
-
-    /// Each stage's median on the night's own scale, so the bars are comparable
-    /// with each other and with the three numbers above them.
-    private func stageBars(_ e: PreparedNight.MetricExtremes) -> some View {
-        // The bars share the axis of the readings above, widened if a stage
-        // median falls outside the asleep range — awake often does.
-        let values = stageRows.map(\.1.value)
-        let lo = min(e.low, values.min() ?? e.low)
-        let hi = max(e.high, values.max() ?? e.high)
-        let span = max(hi - lo, 0.000001)
-        return VStack(alignment: .leading, spacing: 4) {
-            ForEach(stageRows, id: \.0) { stage, reading in
-                HStack(spacing: 6) {
-                    Text(stage.label)
-                        .font(.system(size: 9))
-                        .foregroundStyle(Theme.dim)
-                        .frame(width: 62, alignment: .leading)
-                    GeometryReader { geo in
-                        Capsule()
-                            .fill(stage.colour)
-                            .frame(width: max(3, geo.size.width * ((reading.value - lo) / span)),
-                                   height: 6)
-                            .frame(maxHeight: .infinity, alignment: .center)
+        if present.count >= 2 {
+            HStack(spacing: 9) {
+                ForEach(present, id: \.self) { stage in
+                    HStack(spacing: 3) {
+                        Capsule().fill(stage.colour).frame(width: 12, height: 5)
+                        Text(stage.label)
+                            .font(.system(size: 9))
+                            .foregroundStyle(Theme.dim)
                     }
-                    .frame(height: 8)
-                    Text(def.format(reading.value))
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(Theme.text)
-                        .frame(width: 42, alignment: .trailing)
-                    // The hour is the other half of the reading. Without it
-                    // these bars get compared as though the stages happened at
-                    // the same time of night, and they never do.
-                    Text(Self.clock.string(from: reading.at))
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(Theme.dim.opacity(0.8))
-                        .frame(width: 38, alignment: .trailing)
                 }
+                Spacer(minLength: 0)
             }
-            Text("mostly at that hour — your pulse follows the night's own curve, so compare the hours before you compare the stages")
-                .font(.system(size: 9))
-                .foregroundStyle(Theme.dim.opacity(0.7))
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 1)
         }
     }
 }

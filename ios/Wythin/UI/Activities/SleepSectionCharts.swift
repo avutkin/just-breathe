@@ -99,6 +99,16 @@ struct SleepMetricTraces: View {
         labels.compactMap { label in activityMetricDefs.first { $0.label == label } }
     }
 
+    /// The night's stages, as marks for the foot of every trace in this group.
+    /// Built once here rather than per chart — the runs are a property of the
+    /// night, and four charts rebuilding them on every crosshair move is the
+    /// work `PreparedNight` exists to have done already.
+    private var stageBands: [MetricChartCard.StageBand] {
+        night.stageRuns.map {
+            MetricChartCard.StageBand(start: $0.start, end: $0.end, colour: $0.stage.colour)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 16) {
             ForEach(defs) { def in
@@ -125,6 +135,7 @@ struct SleepMetricTraces: View {
                     history: night.points,
                     rawHistory: night.points,
                     date: endedAt,
+                    stageBands: stageBands,
                     extract: def.extract
                 )
                 // What your night actually read on this channel — under the
@@ -133,6 +144,10 @@ struct SleepMetricTraces: View {
                 SleepNote("WHAT \(def.label.uppercased()) IS", def.why)
                 }
             }
+            // One key for the whole group: the colours mean the same thing
+            // under every trace, and repeating five labels four times is the
+            // clutter the per-chart stage bars were removed for.
+            SleepStageKey(night: night)
         }
     }
 }

@@ -223,6 +223,17 @@ struct MetricChartCard: View {
     /// subject of the screen. The sleep sections pass something shorter: four
     /// traces stacked under one heading is a different reading task, and at
     /// full height the group scrolls past the score it is there to explain.
+    /// A stretch of one sleep stage, drawn as a colour along the foot of the
+    /// plot. Time-aligned for free, because it is a mark inside the same chart
+    /// rather than a strip stacked beneath one.
+    struct StageBand: Identifiable, Equatable {
+        let id = UUID()
+        let start: Date
+        let end: Date
+        let colour: Color
+    }
+    let stageBands: [StageBand]
+
     let chartHeight:   CGFloat
     let title:         String   // consumer name — shown in white
     let technicalName: String   // short technical name — shown in gray after title
@@ -280,7 +291,9 @@ struct MetricChartCard: View {
          rawHistory: [MetricsHistoryPoint] = [],
          date: Date,
          bucketTransform: ((Double) -> Double)? = nil,
+         stageBands: [StageBand] = [],
          extract: @escaping (MetricsHistoryPoint) -> Double?) {
+        self.stageBands      = stageBands
         self.chartHeight     = chartHeight
         self.title           = title
         self.technicalName   = technicalName
@@ -679,6 +692,20 @@ struct MetricChartCard: View {
                 .frame(width: 14)
 
             Chart {
+                // The night's architecture, along the foot of the plot. Drawn
+                // first so the trace and the quality tints sit over it, and
+                // sized as a fraction of the visible domain so it keeps the
+                // same apparent thickness whatever the metric's units are.
+                ForEach(stageBands) { band in
+                    RectangleMark(
+                        xStart: .value("stage start", band.start),
+                        xEnd:   .value("stage end",   band.end),
+                        yStart: .value("stage foot",  domain.lowerBound),
+                        yEnd:   .value("stage head",  domain.lowerBound
+                                       + (domain.upperBound - domain.lowerBound) * 0.08)
+                    )
+                    .foregroundStyle(band.colour)
+                }
                 // Poor quality: amber tint (artifact rate > 20%, signal present but noisy)
                 ForEach(poorBands) { band in
                     RectangleMark(
