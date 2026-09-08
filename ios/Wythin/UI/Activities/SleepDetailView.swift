@@ -28,6 +28,11 @@ struct SleepDetailView: View {
     /// Which section rows are open. Closed by default.
     @State private var expanded: Set<SleepSection> = []
 
+    /// The score's own working, as it was stored on the night.
+    private var storedParts: [SleepSection: [SleepScore.Part]] {
+        SleepScore.parts(fromJSON: entry.sleepPartsJSON)
+    }
+
     private func hm(_ minutes: Int) -> String {
         "\(minutes / 60)h \(String(format: "%02d", minutes % 60))m"
     }
@@ -49,6 +54,14 @@ struct SleepDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 hero
+                if let night {
+                    let items = SleepHighlights.of(night, entry: entry)
+                    if !items.isEmpty {
+                        card("HIGHLIGHTS FROM YOUR NIGHT") {
+                            SleepHighlightsCard(items: items)
+                        }
+                    }
+                }
                 nightRead
                 if entry.sleepScore != nil { arithmetic }
                 sections
@@ -79,9 +92,8 @@ struct SleepDetailView: View {
                     if !SleepSectionCharts.unscored.isEmpty {
                         card("OTHER CHANNELS") {
                             VStack(alignment: .leading, spacing: 10) {
-                                Text("Recorded through the night and not scored. They are here to be read, not to move the number.")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(Theme.dim)
+                                SleepNote("WHY THESE ARE HERE",
+                                          "Recorded through the night and not scored. They are here to be read, not to move the number.")
                                 SleepMetricTraces(night: night,
                                                   labels: SleepSectionCharts.unscored,
                                                   startedAt: entry.startedAt, endedAt: end,
@@ -236,53 +248,85 @@ struct SleepDetailView: View {
         }
     }
 
+    /// The night score, and the four numbers it is the sum of.
+    ///
+    /// The arithmetic used to be one monospaced sentence with the weights
+    /// inlined — readable only by someone already willing to parse it, and the
+    /// score itself was nowhere on the screen at a size that said "this is the
+    /// headline". Now the total is the biggest thing in the card and each
+    /// section shows its own score, its weight beside it, and the points that
+    /// multiplication actually contributed. The sum of the right-hand column
+    /// is the number at the top, which is the whole claim being made.
     private var arithmetic: some View {
-        card("HOW THIS NUMBER WAS MADE") {
-            VStack(alignment: .leading, spacing: 10) {
-                if let line = entry.sleepScoreArithmetic {
-                    Text(line)
-                        .font(.system(size: 11, design: .monospaced))
+        card("THE NIGHT SCORE") {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(entry.sleepScore ?? 0)")
+                        .font(.system(size: 56, weight: .medium, design: .rounded))
                         .foregroundStyle(Theme.text)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text("/ 100")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Theme.dim)
+                    Spacer()
                 }
-                let present = contributions
-                if !present.isEmpty, let maxPts = present.map(\.1).max(), maxPts > 0 {
-                    ForEach(present, id: \.0) { name, pts in
-                        HStack(spacing: 8) {
-                            Text(name)
-                                .font(.system(size: 11))
-                                .foregroundStyle(Theme.dim)
-                                .frame(width: 74, alignment: .leading)
-                            GeometryReader { geo in
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(ActivityType.sleep.color)
-                                    .frame(width: geo.size.width * (pts / maxPts), height: 5)
-                                    .frame(maxHeight: .infinity, alignment: .center)
-                            }
-                            .frame(height: 8)
-                            Text(String(format: "%.1f", pts))
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(Theme.text)
-                                .frame(width: 34, alignment: .trailing)
-                        }
-                    }
-                }
-                Text("Weights are fixed and visible, so the number is checkable. Every section is scored against your own baseline, never a population threshold — sleep need varies between people by about ±0.7 h.")
+                Text("Four sections, each worth a quarter. Every one is scored against your own baseline, never a population threshold.")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.dim)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(spacing: 9) { contributionRows }
+
+                if let line = entry.sleepScoreArithmetic {
+                    SleepNote("THE ARITHMETIC", line)
+                }
             }
         }
     }
 
-    /// Points each section put into the headline — weight × its score.
-    private var contributions: [(String, Double)] {
-        let scores: [(SleepSection, Int?)] = [
-            (.timing, entry.sleepTiming), (.duration, entry.sleepDuration),
-            (.continuity, entry.sleepContinuity), (.autonomic, entry.sleepAutonomic),
-        ]
-        return scores.compactMap { section, value in
-            value.map { (section.name, section.weight * Double($0)) }
+    /// One row per section: its score, its weight, its bar and its points.
+    @ViewBuilder
+    private var contributionRows: some View {
+        let rows = sectionRows
+        ForEach(rows, id: \.section) { row in
+            HStack(spacing: 8) {
+                Text(row.section.name)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.dim)
+                    .frame(width: 76, alignment: .leading)
+                // The section's own score, with its weight underneath rather
+                // than beside it — the two are different kinds of number and
+                // running them together on one line reads as one.
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text(row.score.map { "\($0)" } ?? "—")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.text)
+                    Text("×\(Int(row.section.weight * 100))%")
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundStyle(Theme.dim.opacity(0.8))
+                }
+                .frame(width: 34, alignment: .trailing)
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Theme.surface).frame(height: 6)
+                        Capsule()
+                            .fill(ActivityType.sleep.color)
+                            .frame(width: geo.size.width * (Double(row.score ?? 0) / 100),
+                                   height: 6)
+                    }
+                    .frame(maxHeight: .infinity, alignment: .center)
+                }
+                .frame(height: 10)
+                Text(row.score.map { String(format: "%.1f", row.section.weight * Double($0)) } ?? "—")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(Theme.text)
+                    .frame(width: 34, alignment: .trailing)
+            }
         }
+    }
+
+    private var sectionRows: [(section: SleepSection, score: Int?)] {
+        [(.timing, entry.sleepTiming), (.duration, entry.sleepDuration),
+         (.continuity, entry.sleepContinuity), (.autonomic, entry.sleepAutonomic)]
     }
 
     /// Each row opens to say what it measures, what the evidence for weighting
@@ -349,15 +393,23 @@ struct SleepDetailView: View {
             .buttonStyle(.plain)
 
             if open {
-                VStack(alignment: .leading, spacing: 8) {
-                    explainRow("MEASURES", section.explanation.measures)
-                    explainRow("WHY IT COUNTS", section.explanation.evidence)
+                VStack(alignment: .leading, spacing: 12) {
+                    let parts = storedParts[section] ?? []
+                    if parts.isEmpty {
+                        explainRow("MEASURES", section.explanation.measures)
+                    } else {
+                        // The measurements first: what was measured, the range
+                        // it is read against, and where tonight sat. "Why 26?"
+                        // is answered by the picture, not by the paragraph.
+                        VStack(alignment: .leading, spacing: 11) {
+                            ForEach(Array(parts.enumerated()), id: \.offset) { _, p in
+                                SleepPartBar(part: p)
+                            }
+                        }
+                    }
                     explainRow("WHERE IT IS WEAK", section.explanation.limit)
-                    Text("Weighted \(Int(section.weight * 100))% of the night score.")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(Theme.dim)
                 }
-                .padding(.bottom, 12)
+                .padding(.bottom, 14)
             }
         }
     }
@@ -376,25 +428,14 @@ struct SleepDetailView: View {
     }
 
     private var stageCaveat: some View {
-        Text("N2 and N3 are measured — the depth axis is coherence, variability and heart rate, ranked within this night. N1 is positional: it marks the light sleep either side of a wake bout, which is what N1 physiologically is. ECG quality is not the limit here (86% of ticks top-tier, invalid-RR 0.0); N1 simply has no cardiac signature — human scorers reading EEG agree on it at κ 0.24. Stage totals are cut at typical adult shares, so read the shape rather than the minutes.")
-            .font(.system(size: 10))
-            .foregroundStyle(Theme.dim)
-            .padding(.top, 10)
+        SleepNote("HOW THE STAGES WERE READ", "N2 and N3 are measured — the depth axis is coherence, variability and heart rate, ranked within this night. N1 is positional: it marks the light sleep either side of a wake bout, which is what N1 physiologically is. ECG quality is not the limit here (86% of ticks top-tier, invalid-RR 0.0); N1 simply has no cardiac signature — human scorers reading EEG agree on it at κ 0.24. Stage totals are cut at typical adult shares, so read the shape rather than the minutes.")
     }
 
     private var measurementNote: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("HOW THIS WAS MEASURED")
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .tracking(0.8)
-            Text("Three states, not four. The light/deep boundary is the one a cardiac signal places worst, so it is not claimed. Wake is the least reliable channel any wearable has — treat the awake minutes as approximate.")
-                .font(.system(size: 11))
-            Text("Breathing steadiness comes from how tightly your breath rate holds its own rhythm, measured on a rolling five-minute window. It is not an apnea index and carries no event rate.")
-                .font(.system(size: 11))
-            Text("Body position is read from the direction of gravity in the strap's accelerometer, and appears on nights recorded from now on. Earlier nights collapsed the three axes to a rotation-invariant magnitude before storing, so supine and on-your-side were literally identical on disk and cannot be recovered. Left versus right depends on which way round the strap was fastened; supine, prone and upright do not.")
-                .font(.system(size: 11))
-        }
-        .foregroundStyle(Theme.dim)
+        SleepNote("HOW THIS WAS MEASURED",
+                  "Three states, not four. The light/deep boundary is the one a cardiac signal places worst, so it is not claimed. Wake is the least reliable channel any wearable has — treat the awake minutes as approximate.\n\n"
+                  + "Breathing steadiness comes from how tightly your breath rate holds its own rhythm, measured on a rolling five-minute window. It is not an apnea index and carries no event rate.\n\n"
+                  + "Body position is read from the direction of gravity in the strap's accelerometer, and appears on nights recorded from now on. Earlier nights collapsed the three axes to a rotation-invariant magnitude before storing, so supine and on-your-side were literally identical on disk and cannot be recovered. Left versus right depends on which way round the strap was fastened; supine, prone and upright do not.")
     }
 
     private func card<Content: View>(_ title: String,

@@ -71,9 +71,7 @@ struct SleepSectionChartGroup: View {
     var body: some View {
         if !labels.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Text(SleepSectionCharts.madeOf(section))
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.dim)
+                SleepNote("WHAT FEEDS THIS SCORE", SleepSectionCharts.madeOf(section))
                 SleepMetricTraces(night: night, labels: labels,
                                   startedAt: startedAt, endedAt: endedAt,
                                   selectedX: $selectedX)
@@ -101,34 +99,20 @@ struct SleepMetricTraces: View {
         labels.compactMap { label in activityMetricDefs.first { $0.label == label } }
     }
 
-    /// Kept in step with `SleepMontageChart.colour(_:)`. One metric, one colour,
-    /// wherever it is drawn — a trace that changes colour when it moves under a
-    /// different heading reads as a different measurement.
-    private func colour(_ def: ActivityMetricDef) -> Color {
-        switch def.techLabel {
-        case "HR":     return Theme.warn
-        case "RSA":    return Theme.rsa
-        case "DC":     return Theme.coh
-        case "DFA α1": return Theme.ulf
-        case "SNS %":  return Theme.domainHeavy
-        case "PIP":    return Theme.breathe
-        default:       return Theme.hrv
-        }
-    }
-
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 16) {
             ForEach(defs) { def in
+                VStack(alignment: .leading, spacing: 9) {
                 MetricChartCard(
                     title: def.label,
                     technicalName: def.techFull.isEmpty ? def.techLabel : def.techFull,
-                    subtitle: def.why,
+                    subtitle: "",
                     yLabel: def.unit,
                     // Shorter than the Live screen's default: these arrive in
                     // groups of up to four under one heading, and at full
                     // height the group scrolls past the score it explains.
                     chartHeight: 96,
-                    color: colour(def),
+                    color: sleepMetricColour(def),
                     windows: [],
                     refs: [],
                     yDomain: 0...1,          // only read when the metric has no values at all
@@ -143,6 +127,11 @@ struct SleepMetricTraces: View {
                     date: endedAt,
                     extract: def.extract
                 )
+                // What your night actually read on this channel — under the
+                // line it came off, in the metric's own units.
+                SleepMetricReadout(night: night, def: def)
+                SleepNote("WHAT \(def.label.uppercased()) IS", def.why)
+                }
             }
         }
     }

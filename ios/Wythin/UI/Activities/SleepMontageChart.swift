@@ -208,28 +208,9 @@ struct SleepMontageChart: View {
     /// thing on the chart. A lane ribbon caps wake at one lane's worth of ink
     /// whatever share of the night it occupies, so that reason is gone and the
     /// brighter neutral is safe again.
-    private func colour(_ s: SleepStageDetail) -> Color {
-        switch s {
-        // Awake is not a depth, so it sits outside the blue ramp entirely.
-        case .wake: return Color(hex: "#F0EAE2")
-        case .rem:  return Color(hex: "#BCDCF7")
-        case .n1:   return Color(hex: "#74AEE4")
-        case .n2:   return Color(hex: "#3F7CC0")
-        case .n3:   return Color(hex: "#22508F")
-        }
-    }
+    private func colour(_ s: SleepStageDetail) -> Color { s.colour }
 
-    private func colour(_ def: ActivityMetricDef) -> Color {
-        switch def.techLabel {
-        case "HR":     return Theme.warn
-        case "RSA":    return Theme.rsa
-        case "DC":     return Theme.coh
-        case "DFA α1": return Theme.ulf
-        case "SNS %":  return Theme.domainHeavy
-        case "PIP":    return Theme.breathe
-        default:       return Theme.hrv
-        }
-    }
+    private func colour(_ def: ActivityMetricDef) -> Color { sleepMetricColour(def) }
 
     /// Supine is the one that carries a clinical meaning — it is the position
     /// the upper airway is most collapsible in — so it is the one that stands

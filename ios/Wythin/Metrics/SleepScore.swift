@@ -142,7 +142,57 @@ struct SleepScoreInput {
 // MARK: - Score
 
 struct SleepScore {
+
+    /// One input to a section, with the range it is scored over and where this
+    /// night landed in it.
+    ///
+    /// The score used to report only its totals, which meant "why 26?" had no
+    /// answer on the screen — the reader could see the section weights but not
+    /// the measurements underneath them. A range, a value and a resulting score
+    /// is the whole of the arithmetic, and it is more use than a paragraph
+    /// explaining what the section is *for*.
+    ///
+    /// `worst`/`best` are stated in the metric's own units and in reading
+    /// order, so `worst` may be the larger number when less is better.
+    struct Part: Equatable, Codable {
+        let label:   String     // "Bedtime spread"
+        let value:   Double     // 105
+        let display: String     // "105m"
+        let worstLabel: String  // "110m"
+        let bestLabel:  String  // "20m"
+        let worst:   Double
+        let best:    Double
+        let score:   Double     // 0…100, this part alone
+        let weight:  Double     // its share within the section
+
+        /// Where the value sits between the two anchors, 0…1, for a bar.
+        var position: Double {
+            guard best != worst else { return 0 }
+            return min(1, max(0, (value - worst) / (best - worst)))
+        }
+    }
+
     let sections: [SleepSection: Int]
+    /// What each section was made of. Empty for a section that was not scored.
+    let parts: [SleepSection: [Part]]
+
+    /// The parts, stored on the night so the detail screen can show its working
+    /// without recomputing a score it has no baselines for.
+    var partsJSON: String? {
+        let keyed = Dictionary(uniqueKeysWithValues: parts.map { ($0.key.rawValue, $0.value) })
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.sortedKeys]
+        return (try? enc.encode(keyed)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    static func parts(fromJSON json: String?) -> [SleepSection: [Part]] {
+        guard let data = json?.data(using: .utf8),
+              let keyed = try? JSONDecoder().decode([String: [Part]].self, from: data)
+        else { return [:] }
+        return Dictionary(uniqueKeysWithValues: keyed.compactMap { key, value in
+            SleepSection(rawValue: key).map { ($0, value) }
+        })
+    }
     let overall: Int?
     /// The arithmetic, spelled out. The exercise research condemned opaque
     /// composites — none of fourteen consumer composite scores survived
@@ -150,8 +200,28 @@ struct SleepScore {
     /// ship.
     let arithmetic: String
 
+    /// Builds a part and its contribution in one place, so the number shown
+    /// beside the bar and the number folded into the section can never drift.
+    private static func part(_ label: String, _ value: Double, _ display: String,
+                             worst: Double, best: Double,
+                             worstLabel: String, bestLabel: String,
+                             weight: Double) -> Part {
+        Part(label: label, value: value, display: display,
+             worstLabel: worstLabel, bestLabel: bestLabel,
+             worst: worst, best: best,
+             score: ramp(value, worst: worst, best: best), weight: weight)
+    }
+
+    private static func fold(_ parts: [Part]) -> Int? {
+        guard !parts.isEmpty else { return nil }
+        let total = parts.reduce(0) { $0 + $1.weight }
+        guard total > 0 else { return nil }
+        return round(parts.reduce(0) { $0 + $1.weight * $1.score } / total)
+    }
+
     static func compute(_ input: SleepScoreInput) -> SleepScore {
         var sections: [SleepSection: Int] = [:]
+        var parts: [SleepSection: [Part]] = [:]
 
         // Timing is two things: how consistent your hours are, and which hours
         // they are. Consistency is the better evidenced of the two and carries
@@ -160,21 +230,23 @@ struct SleepScore {
         // section from reading "not measured" for weeks.
         //
         // Both are negated so the ramp still runs worst→best: less is better.
-        var timingParts: [(Double, Double)] = []
+        var timingParts: [Part] = []
         if let sd = input.bedtimeSDMin {
             // 20 minutes is about as tight as a real bedtime gets; beyond 110
             // the times describe different schedules rather than one with
             // variation, and there is nothing left to distinguish.
-            timingParts.append((0.65, ramp(-sd, worst: -110, best: -20)))
+            timingParts.append(part("Bedtime spread", -sd, "±\(Int(sd.rounded()))m",
+                                    worst: -110, best: -20,
+                                    worstLabel: "±110m", bestLabel: "±20m", weight: 0.65))
         }
         if let outside = input.bedtimeOutsideMin {
-            timingParts.append((0.35, ramp(-outside,
-                                           worst: -BedtimePlacement.reachMinutes, best: 0)))
+            timingParts.append(part("Hour you fell asleep", -outside,
+                                    outside == 0 ? "in the window" : "\(Int(outside.rounded()))m outside",
+                                    worst: -BedtimePlacement.reachMinutes, best: 0,
+                                    worstLabel: "3h out", bestLabel: "22–23h", weight: 0.35))
         }
-        if !timingParts.isEmpty {
-            let total = timingParts.reduce(0) { $0 + $1.0 }
-            sections[.timing] = round(timingParts.reduce(0) { $0 + $1.0 * $1.1 } / total)
-        }
+        parts[.timing] = timingParts
+        sections[.timing] = fold(timingParts)
         if let asleep = input.asleepSec {
             // Asymmetric, deliberately. Symmetric scoring punished ten hours
             // exactly as hard as four, and the evidence does not support that:
@@ -187,7 +259,13 @@ struct SleepScore {
             // So the score climbs to the need and then holds. Sleeping more
             // than you need is not a failure to report.
             let shortfall = max(0, input.needSec - asleep)
-            sections[.duration] = round(ramp(-shortfall, worst: -(150 * 60), best: 0))
+            let short = Int((shortfall / 60).rounded())
+            let durationParts = [part("Against your need", -shortfall,
+                                      short == 0 ? "met in full" : "\(short / 60)h \(short % 60)m short",
+                                      worst: -(150 * 60), best: 0,
+                                      worstLabel: "2h30m short", bestLabel: "met", weight: 1)]
+            parts[.duration] = durationParts
+            sections[.duration] = fold(durationParts)
         }
         if let longest = input.longestUnbrokenSec, let bouts = input.wakeBouts {
             // Three views of one question: how much of the night held together.
@@ -199,23 +277,37 @@ struct SleepScore {
             // because it measures the same thing from a third channel. It is
             // weighted least of the three: it is ordinal, self-referential, and
             // reads high on nights with real awake time in them.
-            var parts: [(Double, Double)] = [
-                (0.45, ramp(longest, worst: 45 * 60, best: 180 * 60)),
-                (0.35, ramp(Double(-bouts), worst: -12, best: -2)),
+            let mins = Int((longest / 60).rounded())
+            var continuityParts = [
+                part("Longest unbroken stretch", longest, "\(mins / 60)h \(mins % 60)m",
+                     worst: 45 * 60, best: 180 * 60,
+                     worstLabel: "45m", bestLabel: "3h", weight: 0.45),
+                part("Times it broke", Double(-bouts), "\(bouts)",
+                     worst: -12, best: -2, worstLabel: "12", bestLabel: "2", weight: 0.35),
             ]
             if let steady = input.steadyFraction {
-                parts.append((0.20, ramp(steady, worst: 0.45, best: 0.90)))
+                continuityParts.append(part("Breathing held its rhythm", steady,
+                                            "\(Int((steady * 100).rounded()))% of the night",
+                                            worst: 0.45, best: 0.90,
+                                            worstLabel: "45%", bestLabel: "90%", weight: 0.20))
             }
-            let total = parts.reduce(0) { $0 + $1.0 }
-            sections[.continuity] = round(parts.reduce(0) { $0 + $1.0 * $1.1 } / total)
+            parts[.continuity] = continuityParts
+            sections[.continuity] = fold(continuityParts)
         }
         if let dip = input.hrNadirDip {
             // Depth, then placement, then the night's own vagal level. A nadir
             // that arrives near the middle is the settled pattern; one that
             // arrives near morning is the signature evening load leaves.
-            var parts: [(Double, Double)] = [(0.40, ramp(Double(dip), worst: 6, best: 18))]
+            var autonomicParts = [part("How far your pulse fell", Double(dip),
+                                       "\(Int(dip.rounded())) bpm below onset",
+                                       worst: 6, best: 18,
+                                       worstLabel: "6 bpm", bestLabel: "18 bpm", weight: 0.40)]
             if let at = input.hrNadirFraction {
-                parts.append((0.20, ramp(-abs(at - 0.45), worst: -0.35, best: 0)))
+                autonomicParts.append(part("When it bottomed out", -abs(at - 0.45),
+                                           "\(Int((at * 100).rounded()))% through the night",
+                                           worst: -0.35, best: 0,
+                                           worstLabel: "at either end", bestLabel: "mid-night",
+                                           weight: 0.20))
             }
             // Vagal tone, against this sleeper's own recent nights rather than
             // a population band: their median is 50, thirty per cent above it
@@ -228,13 +320,19 @@ struct SleepScore {
             // and placement alone instead of being marked down for having no
             // history.
             if let dc = input.quietDC, let base = input.quietDCBaseline, base > 0 {
-                parts.append((0.25, ramp(Double(dc / base), worst: 0.70, best: 1.30)))
+                autonomicParts.append(part("Vagal tone (DC)", Double(dc / base),
+                                           "\(String(format: "%.1f", dc)) ms · \(Int((Double(dc / base) * 100).rounded()))% of usual",
+                                           worst: 0.70, best: 1.30,
+                                           worstLabel: "−30%", bestLabel: "+30%", weight: 0.25))
             }
             if let rmssd = input.quietRMSSD, let base = input.quietRMSSDBaseline, base > 0 {
-                parts.append((0.15, ramp(Double(rmssd / base), worst: 0.70, best: 1.30)))
+                autonomicParts.append(part("Calm power (RMSSD)", Double(rmssd / base),
+                                           "\(Int(rmssd.rounded())) ms · \(Int((Double(rmssd / base) * 100).rounded()))% of usual",
+                                           worst: 0.70, best: 1.30,
+                                           worstLabel: "−30%", bestLabel: "+30%", weight: 0.15))
             }
-            let totalWeight = parts.reduce(0) { $0 + $1.0 }
-            sections[.autonomic] = round(parts.reduce(0) { $0 + $1.0 * $1.1 } / totalWeight)
+            parts[.autonomic] = autonomicParts
+            sections[.autonomic] = fold(autonomicParts)
         }
 
         let present = SleepSection.allCases.filter { sections[$0] != nil }
@@ -266,6 +364,7 @@ struct SleepScore {
               + "the rest are reweighted to fill it)"
 
         return SleepScore(sections: sections,
+                          parts: parts,
                           overall: overall,
                           arithmetic: (overall.map { "\($0) = \(line)" } ?? line) + note)
     }

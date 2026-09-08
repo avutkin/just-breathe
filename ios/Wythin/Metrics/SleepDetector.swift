@@ -180,7 +180,11 @@ enum SleepThresholds {
     /// 19: Timing is the hour you went to sleep as well as how consistent your
     /// hours are, so it is scoreable from a single night instead of waiting for
     /// three. Every stored night's timing changes.
-    static let algorithmVersion: Int = 19
+    /// 20: every section now stores the inputs it was scored on — the value,
+    /// the range it was read against and the share it carried — so the detail
+    /// screen can show the working instead of describing it. No score changes;
+    /// the rescore exists to fill the new field on nights already stored.
+    static let algorithmVersion: Int = 20
     /// Shortest run that can stand as its own stage. Sleep changes state on
     /// the scale of minutes; anything briefer is a turn or a dropped estimate,
     /// and leaving it in inflates every count derived from the hypnogram.

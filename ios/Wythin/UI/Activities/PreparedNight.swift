@@ -38,6 +38,32 @@ struct PreparedNight: Sendable {
     /// night's architecture rather than against a bare clock.
     let wakeBands: [Band]
 
+    /// Metric id → what the night actually read on that channel, asleep only.
+    ///
+    /// Precomputed for the same reason the series are: the readout under each
+    /// chart wants the low, the high and the middle of every metric, and the
+    /// crosshair rebuilds the view on every touch move. Walking the night five
+    /// times per frame to re-find a minimum that cannot have changed is the
+    /// bug this file exists to have fixed once.
+    let extremes: [String: MetricExtremes]
+
+    /// Metric id → stage → the median the body held in that stage.
+    ///
+    /// The contrast between stages is the reading, not the night average: a
+    /// breath rate that runs faster in deep sleep than awake is a fact about
+    /// this person's night, and a single mean hides it completely.
+    let byStage: [String: [SleepStageDetail: Double]]
+
+    struct MetricExtremes: Sendable, Equatable {
+        let low: Double
+        let lowAt: Date
+        let high: Double
+        let highAt: Date
+        /// The middle of the asleep night — a median, so one bad bucket cannot
+        /// move it the way a mean would.
+        let typical: Double
+    }
+
     struct Sample: Sendable, Equatable {
         let date: Date
         let value: Double
@@ -164,8 +190,12 @@ struct PreparedNight: Sendable {
 
         self.stageRuns = Self.buildStageRuns(stages, points: points)
         self.motionTicks = Self.buildMotionTicks(points, threshold: self.motionThreshold)
-        self.series = Self.buildSeries(points)
-        self.wakeBands = Self.buildWakeBands(stages, points: points)
+        let series = Self.buildSeries(points)
+        self.series = series
+        let wakeBands = Self.buildWakeBands(stages, points: points)
+        self.wakeBands = wakeBands
+        self.extremes = Self.buildExtremes(series, wakeBands: wakeBands)
+        self.byStage = Self.buildByStage(points, stages: stages)
         let bands = Self.positionBands(points)
         self.positionBands = bands
         self.positionTicks = points.reduce(0) { $0 + ($1.bodyPosition == nil ? 0 : 1) }
@@ -174,6 +204,62 @@ struct PreparedNight: Sendable {
                 Int((band.end.timeIntervalSince(band.start) / 60).rounded())
         }
     }
+
+    /// Low, high and middle of each metric over the ASLEEP part of the night.
+    ///
+    /// Read off the drawn buckets rather than the raw ticks, deliberately: the
+    /// readout sits directly under the line, and a minimum taken from a single
+    /// 30-second sample would name a value the chart never visibly reaches.
+    /// The number under a chart has to be a number you can point at on it.
+    static func buildExtremes(_ series: [String: [Sample]],
+                              wakeBands: [Band]) -> [String: MetricExtremes] {
+        func asleep(_ date: Date) -> Bool {
+            !wakeBands.contains { $0.start <= date && date <= $0.end }
+        }
+        var out: [String: MetricExtremes] = [:]
+        for (id, samples) in series {
+            // Fall back to the whole night only when nothing was scored as
+            // sleep — an all-wake window still has a readable trace.
+            var used = samples.filter { asleep($0.date) }
+            if used.count < 3 { used = samples }
+            guard let low = used.min(by: { $0.value < $1.value }),
+                  let high = used.max(by: { $0.value < $1.value }),
+                  used.count >= 3 else { continue }
+            let sorted = used.map(\.value).sorted()
+            out[id] = MetricExtremes(low: low.value, lowAt: low.date,
+                                     high: high.value, highAt: high.date,
+                                     typical: sorted[sorted.count / 2])
+        }
+        return out
+    }
+
+    /// Median of each metric within each stage, from the raw ticks.
+    ///
+    /// A stage a night barely touched is left out rather than reported: three
+    /// ticks of N1 is not a reading of anything, and a bar drawn from it would
+    /// invite exactly the comparison it cannot support.
+    static func buildByStage(_ points: [MetricsHistoryPoint],
+                             stages: [SleepStageDetail]) -> [String: [SleepStageDetail: Double]] {
+        guard stages.count == points.count else { return [:] }
+        var out: [String: [SleepStageDetail: Double]] = [:]
+        for def in activityMetricDefs {
+            var perStage: [SleepStageDetail: Double] = [:]
+            for stage in SleepStageDetail.allCases {
+                let values = points.indices
+                    .filter { stages[$0] == stage }
+                    .compactMap { def.extract(points[$0]) }
+                    .sorted()
+                guard values.count >= minStageTicks else { continue }
+                perStage[stage] = values[values.count / 2]
+            }
+            if !perStage.isEmpty { out[def.id] = perStage }
+        }
+        return out
+    }
+
+    /// About five minutes at the background cadence. Below this a stage has
+    /// been touched, not spent.
+    static let minStageTicks = 10
 
     /// Contiguous runs of one body position.
     ///

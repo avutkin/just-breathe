@@ -220,6 +220,10 @@ final class ActivityLog {
     ///
     /// Stored per night because the score compares them against this sleeper's
     /// own recent nights rather than against a population figure.
+    /// The score's own working — each section's inputs, their ranges and where
+    /// this night landed. Stored rather than recomputed because the detail
+    /// screen has no access to the baselines the score was built against.
+    var sleepPartsJSON: String?
     var sleepQuietRMSSD: Float?
     var sleepQuietDC:    Float?
     /// What the detector proposed for this night, before the sleeper's

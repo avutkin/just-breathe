@@ -58,6 +58,8 @@
 		A124 /* PacerCircleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F124 /* PacerCircleView.swift */; };
 		A280 /* HoldProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F280 /* HoldProtocol.swift */; };
 		A281 /* BreathHoldEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F281 /* BreathHoldEngine.swift */; };
+		A287 /* SleepPartBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F287 /* SleepPartBar.swift */; };
+		A288 /* SleepReadouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F288 /* SleepReadouts.swift */; };
 		A286 /* SleepSectionCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F286 /* SleepSectionCharts.swift */; };
 		A283 /* BreathScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = F283 /* BreathScript.swift */; };
 		A284 /* ScriptedBreathEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F284 /* ScriptedBreathEngine.swift */; };
@@ -273,6 +275,7 @@
 		A704 /* BedtimeConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F704 /* BedtimeConsistencyTests.swift */; };
 		A705 /* BedtimeConsistency.swift in Sources */ = {isa = PBXBuildFile; fileRef = F705 /* BedtimeConsistency.swift */; };
 		A706 /* SleepScoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F706 /* SleepScoreTests.swift */; };
+		A720 /* SleepScorePartsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F720 /* SleepScorePartsTests.swift */; };
 		A707 /* SleepScore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F707 /* SleepScore.swift */; };
 		A708 /* SleepWindowTruncationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F708 /* SleepWindowTruncationTests.swift */; };
 		A760 /* SleepSessionizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F760 /* SleepSessionizerTests.swift */; };
@@ -361,6 +364,8 @@
 		F124 /* PacerCircleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacerCircleView.swift; sourceTree = "<group>"; };
 		F280 /* HoldProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldProtocol.swift; sourceTree = "<group>"; };
 		F281 /* BreathHoldEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreathHoldEngine.swift; sourceTree = "<group>"; };
+		F287 /* SleepPartBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepPartBar.swift; sourceTree = "<group>"; };
+		F288 /* SleepReadouts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepReadouts.swift; sourceTree = "<group>"; };
 		F286 /* SleepSectionCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepSectionCharts.swift; sourceTree = "<group>"; };
 		F283 /* BreathScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreathScript.swift; sourceTree = "<group>"; };
 		F284 /* ScriptedBreathEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptedBreathEngine.swift; sourceTree = "<group>"; };
@@ -577,6 +582,7 @@
 		F704 /* BedtimeConsistencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedtimeConsistencyTests.swift; sourceTree = "<group>"; };
 		F705 /* BedtimeConsistency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedtimeConsistency.swift; sourceTree = "<group>"; };
 		F706 /* SleepScoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepScoreTests.swift; sourceTree = "<group>"; };
+		F720 /* SleepScorePartsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepScorePartsTests.swift; sourceTree = "<group>"; };
 		F707 /* SleepScore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepScore.swift; sourceTree = "<group>"; };
 		F708 /* SleepWindowTruncationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepWindowTruncationTests.swift; sourceTree = "<group>"; };
 		F760 /* SleepSessionizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepSessionizerTests.swift; sourceTree = "<group>"; };
@@ -641,6 +647,8 @@
 				F776 /* SleepDetailView.swift */,
 				F775 /* SleepMontageChart.swift */,
 				F286 /* SleepSectionCharts.swift */,
+				F287 /* SleepPartBar.swift */,
+				F288 /* SleepReadouts.swift */,
 				F709 /* PreparedNight.swift */,
 				F772 /* SleepLogRow.swift */,
 				F137 /* ActivitiesView.swift */,
@@ -963,7 +971,8 @@
 				F711 /* PreparedNightPerfTests.swift */,
 				F708 /* SleepWindowTruncationTests.swift */,
 				F706 /* SleepScoreTests.swift */,
-				F704 /* BedtimeConsistencyTests.swift */,
+				F720 /* SleepScorePartsTests.swift */,
+						F704 /* BedtimeConsistencyTests.swift */,
 				F702 /* SleepStagesTests.swift */,
 				F700 /* SleepDetectorTests.swift */,
 				FT500 /* DayPotentialProgressTests.swift */,
@@ -1307,6 +1316,8 @@
 				A124 /* PacerCircleView.swift in Sources */,
 				A280 /* HoldProtocol.swift in Sources */,
 				A281 /* BreathHoldEngine.swift in Sources */,
+				A287 /* SleepPartBar.swift in Sources */,
+				A288 /* SleepReadouts.swift in Sources */,
 				A286 /* SleepSectionCharts.swift in Sources */,
 				A283 /* BreathScript.swift in Sources */,
 				A284 /* ScriptedBreathEngine.swift in Sources */,
@@ -1352,7 +1363,8 @@
 				A711 /* PreparedNightPerfTests.swift in Sources */,
 				A708 /* SleepWindowTruncationTests.swift in Sources */,
 				A706 /* SleepScoreTests.swift in Sources */,
-				A704 /* BedtimeConsistencyTests.swift in Sources */,
+				A720 /* SleepScorePartsTests.swift in Sources */,
+						A704 /* BedtimeConsistencyTests.swift in Sources */,
 				A702 /* SleepStagesTests.swift in Sources */,
 				A700 /* SleepDetectorTests.swift in Sources */,
 				AT500 /* DayPotentialProgressTests.swift in Sources */,
