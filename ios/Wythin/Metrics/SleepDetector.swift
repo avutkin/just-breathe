@@ -177,7 +177,10 @@ enum SleepThresholds {
     /// axis of its own — it measured whether you were asleep, which continuity
     /// already scored — and became continuity's third input. Every stored
     /// night's overall and continuity change.
-    static let algorithmVersion: Int = 18
+    /// 19: Timing is the hour you went to sleep as well as how consistent your
+    /// hours are, so it is scoreable from a single night instead of waiting for
+    /// three. Every stored night's timing changes.
+    static let algorithmVersion: Int = 19
     /// Shortest run that can stand as its own stage. Sleep changes state on
     /// the scale of minutes; anything briefer is a turn or a dropped estimate,
     /// and leaving it in inflates every count derived from the hypnogram.

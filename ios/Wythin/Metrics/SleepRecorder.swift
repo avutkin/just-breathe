@@ -461,6 +461,7 @@ enum SleepRecorder {
 
         let input = SleepScoreInput(
             bedtimeSDMin: BedtimeConsistency.onsetSDMinutes(of: priorWindows + [night]),
+            bedtimeOutsideMin: BedtimePlacement.minutesOutside(night.startedAt),
             asleepSec: asleepSec,
             needSec: SleepThresholds.defaultNeedSec,
             wakeBouts: bouts,

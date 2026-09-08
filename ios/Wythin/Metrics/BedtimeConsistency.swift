@@ -62,3 +62,49 @@ enum BedtimeConsistency {
         return radians * 86_400 / (2 * .pi) / 60
     }
 }
+
+/// Where the night sits on the clock, as distinct from how consistent it is.
+///
+/// Consistency answers "do you keep the same hours"; it says nothing about
+/// *which* hours, so someone reliably asleep at 03:00 scores full marks. This is
+/// the other half, and it is the half available from a single night — which
+/// matters on a strap somebody wears three times rather than every night.
+///
+/// ⚠️ **The evidence here is weaker than the regularity evidence and is not in
+/// the August report.** Accelerometer-derived sleep onset in ~88,000 UK Biobank
+/// participants showed lowest cardiovascular incidence for onset between 22:00
+/// and 23:00, with raised hazard both after midnight *and* before 22:00 — a U,
+/// not a ramp. Verify before this constant is defended to anyone.
+///
+/// That U is why "earlier is always better" is not what this scores. Going to
+/// bed at 20:00 is scored as further from the middle of the window than 22:30,
+/// because that is what the data says, and inventing a monotonic preference
+/// would be picking the shape we liked over the one that was measured.
+enum BedtimePlacement {
+
+    /// The window with the lowest observed incidence. Both ends matter.
+    static let windowStartMinutes: Double = 22 * 60
+    static let windowEndMinutes:   Double = 23 * 60
+
+    /// How far outside the window the score runs out. Three hours puts 01:00
+    /// and 19:00 at zero, which is far enough that an ordinary late night still
+    /// scores something.
+    static let reachMinutes: Double = 180
+
+    /// Minutes outside the window, zero when inside it.
+    ///
+    /// Circular, because a window that ends at 23:00 and an onset at 00:30 are
+    /// ninety minutes apart, not twenty-two and a half hours.
+    static func minutesOutside(_ onset: Date, calendar: Calendar = .current) -> Double {
+        let parts = calendar.dateComponents([.hour, .minute], from: onset)
+        let minutes = Double((parts.hour ?? 0) * 60 + (parts.minute ?? 0))
+        if minutes >= windowStartMinutes && minutes <= windowEndMinutes { return 0 }
+        return min(circularGap(minutes, windowStartMinutes),
+                   circularGap(minutes, windowEndMinutes))
+    }
+
+    private static func circularGap(_ a: Double, _ b: Double) -> Double {
+        let raw = abs(a - b)
+        return min(raw, 1440 - raw)
+    }
+}

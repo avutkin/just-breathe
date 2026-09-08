@@ -75,9 +75,9 @@ enum SleepSection: String, CaseIterable, Codable {
         switch self {
         case .timing:
             return (
-                "The spread of the hour you fall asleep, across every night recorded — consecutive or not.",
-                "In 60,977 people the most regular quintile carried an all-cause mortality hazard of 0.70 against the least regular. Head to head it beat duration: adding hours slept to a model that already knew your regularity added nothing measurable.",
-                "Needs three nights before it says anything, and they can be weeks apart. Below that it is absent rather than zero."
+                "Two things: which hour you went to sleep, and how tightly your bedtimes cluster across every night recorded. Gaps between nights cost nothing — three nights months apart count the same as three in a row.",
+                "In 60,977 people the most regular quintile carried an all-cause mortality hazard of 0.70 against the least regular. Head to head it beat duration: adding hours slept to a model that already knew your regularity added nothing measurable. So consistency carries most of this, and the hour itself the rest.",
+                "The hour is scored against a 22:00–23:00 window, and both ends count — very early nights are associated with raised risk much as late ones are, so this is not \"earlier is always better\". That evidence is weaker than the regularity evidence. Consistency needs three nights; until then the hour is scored on its own."
             )
         case .duration:
             return (
@@ -109,6 +109,11 @@ struct SleepScoreInput {
     /// Circular SD of sleep onset, in minutes. Lower is steadier. Needs three
     /// nights, which need not be consecutive — see `BedtimeConsistency`.
     var bedtimeSDMin: Double?
+    /// Minutes this night's onset fell outside the 22:00–23:00 window, zero
+    /// when inside — see `BedtimePlacement`. Available from a single night,
+    /// which is what keeps Timing from being blank for somebody who wears the
+    /// strap three times rather than every night.
+    var bedtimeOutsideMin: Double?
     var asleepSec: Double?
     var needSec: Double             // this wearer's own need, not a population figure
     var wakeBouts: Int?
@@ -148,13 +153,27 @@ struct SleepScore {
     static func compute(_ input: SleepScoreInput) -> SleepScore {
         var sections: [SleepSection: Int] = [:]
 
+        // Timing is two things: how consistent your hours are, and which hours
+        // they are. Consistency is the better evidenced of the two and carries
+        // the larger share — but it needs three nights, and placement needs
+        // one. On a strap worn a handful of times, placement is what keeps the
+        // section from reading "not measured" for weeks.
+        //
+        // Both are negated so the ramp still runs worst→best: less is better.
+        var timingParts: [(Double, Double)] = []
         if let sd = input.bedtimeSDMin {
-            // Negated so the ramp still runs worst→best: less spread scores
-            // higher. 20 minutes is about as tight as a real bedtime gets and
-            // is scored as steady; beyond 110 the times are far enough apart
-            // that they describe different schedules rather than one with
+            // 20 minutes is about as tight as a real bedtime gets; beyond 110
+            // the times describe different schedules rather than one with
             // variation, and there is nothing left to distinguish.
-            sections[.timing] = round(ramp(-sd, worst: -110, best: -20))
+            timingParts.append((0.65, ramp(-sd, worst: -110, best: -20)))
+        }
+        if let outside = input.bedtimeOutsideMin {
+            timingParts.append((0.35, ramp(-outside,
+                                           worst: -BedtimePlacement.reachMinutes, best: 0)))
+        }
+        if !timingParts.isEmpty {
+            let total = timingParts.reduce(0) { $0 + $1.0 }
+            sections[.timing] = round(timingParts.reduce(0) { $0 + $1.0 * $1.1 } / total)
         }
         if let asleep = input.asleepSec {
             // Asymmetric, deliberately. Symmetric scoring punished ten hours

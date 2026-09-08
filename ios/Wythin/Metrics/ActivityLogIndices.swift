@@ -220,7 +220,7 @@ extension ActivityLog {
     /// its input was not measured.
     var sleepIndexSlots: [(name: String, index: ScoredIndex?, whenEmpty: String)] {
         [
-            ("Timing", sleepSection(.timing, sleepTiming), "needs three nights"),
+            ("Timing", sleepSection(.timing, sleepTiming), "no bedtime recorded"),
             ("Duration", sleepSection(.duration, sleepDuration), "no sleep time"),
             ("Continuity", sleepSection(.continuity, sleepContinuity), "no stages"),
             ("Autonomic", sleepSection(.autonomic, sleepAutonomic), "no heart rate"),
@@ -241,8 +241,11 @@ extension ActivityLog {
             // Stated as the spread itself rather than an index. "±40m" is a
             // fact about your week; "regularity index 44" was a number only
             // this app knew the meaning of.
-            return sleepBedtimeSDMin.map { "bedtime varies ±\(Int($0.rounded()))m" }
-                ?? "how steady your bedtime is"
+            let clock = DateFormatter()
+            clock.dateFormat = "HH:mm"
+            let went = "asleep \(clock.string(from: startedAt))"
+            guard let sd = sleepBedtimeSDMin else { return went }
+            return "\(went) · varies ±\(Int(sd.rounded()))m"
         case .duration:
             guard let m = sleepAsleepMinutes else { return "time asleep" }
             // The target beside the total. A duration score with no target is

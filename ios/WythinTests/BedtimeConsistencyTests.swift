@@ -76,34 +76,101 @@ final class BedtimeConsistencyTests: XCTestCase {
         XCTAssertNil(BedtimeConsistency.onsetSDMinutes(of: []))
     }
 
+    // MARK: - Where the night sits on the clock
+
+    private func onset(_ hour: Int, _ minute: Int = 0) -> Date {
+        var c = DateComponents(year: 2026, month: 7, day: 10)
+        c.hour = hour; c.minute = minute
+        return Calendar.current.date(from: c)!
+    }
+
+    func testInsideTheWindowCostsNothing() {
+        XCTAssertEqual(BedtimePlacement.minutesOutside(onset(22, 0)), 0)
+        XCTAssertEqual(BedtimePlacement.minutesOutside(onset(22, 30)), 0)
+        XCTAssertEqual(BedtimePlacement.minutesOutside(onset(23, 0)), 0)
+    }
+
+    /// The measured relationship is a U, not a ramp: nights beginning well
+    /// before the window carry raised risk much as late ones do. Scoring it as
+    /// "earlier is always better" would be choosing a shape we liked over the
+    /// one that was observed.
+    func testVeryEarlyIsAsFarOutAsVeryLate() {
+        XCTAssertEqual(BedtimePlacement.minutesOutside(onset(20, 0)), 120, accuracy: 0.1)
+        XCTAssertEqual(BedtimePlacement.minutesOutside(onset(1, 0)), 120, accuracy: 0.1)
+    }
+
+    /// Clock times wrap. An onset half an hour after midnight is ninety minutes
+    /// past the window, not twenty-two and a half hours.
+    func testPastMidnightIsMeasuredTheShortWayRound() {
+        XCTAssertEqual(BedtimePlacement.minutesOutside(onset(0, 30)), 90, accuracy: 0.1)
+    }
+
     // MARK: - How it scores
 
-    private func timing(sdMin: Double?) -> Int? {
+    private func timing(sdMin: Double?, outsideMin: Double? = 0) -> Int? {
         var input = SleepScoreInput(bedtimeSDMin: sdMin, asleepSec: 7 * 3600,
                                     needSec: 8 * 3600)
         input.bedtimeSDMin = sdMin
+        input.bedtimeOutsideMin = outsideMin
         return SleepScore.compute(input).sections[.timing]
     }
 
-    func testATightBedtimeScoresFull() {
-        XCTAssertEqual(timing(sdMin: 12), 100)
+    /// The point of adding placement: somebody who has worn the strap once or
+    /// twice has no spread to measure, and used to see nothing at all. The hour
+    /// they went to sleep is measurable from the first night.
+    func testTimingIsScoredFromOneNightBeforeThereIsASpread() {
+        let firstNight = timing(sdMin: nil, outsideMin: 0)
+        XCTAssertEqual(firstNight, 100, "asleep inside the window, and that much is known tonight")
+        XCTAssertNotNil(timing(sdMin: nil, outsideMin: 150))
     }
 
-    func testAScatteredBedtimeScoresNothing() {
-        XCTAssertEqual(timing(sdMin: 140), 0)
+    func testAGoodHourLiftsAnInconsistentSchedule() {
+        let scattered = timing(sdMin: 105, outsideMin: 150)
+        let scatteredButWellTimed = timing(sdMin: 105, outsideMin: 0)
+        guard let scattered, let scatteredButWellTimed else { return XCTFail("scoreable") }
+        XCTAssertGreaterThan(scatteredButWellTimed, scattered)
+        XCTAssertLessThan(scatteredButWellTimed, 60,
+                          "one well-placed night does not make an irregular schedule regular")
+    }
+
+    /// Consistency is the better-evidenced half and must stay the larger one.
+    func testConsistencyOutweighsTheHour() {
+        let steadyButLate = timing(sdMin: 15, outsideMin: 180)
+        let scatteredButOnTime = timing(sdMin: 110, outsideMin: 0)
+        guard let steadyButLate, let scatteredButOnTime else { return XCTFail("scoreable") }
+        XCTAssertGreaterThan(steadyButLate, scatteredButOnTime)
+    }
+
+    func testATightBedtimeAtAGoodHourScoresFull() {
+        XCTAssertEqual(timing(sdMin: 12, outsideMin: 0), 100)
+    }
+
+    /// Nothing to commend it on either half.
+    func testAScatteredBedtimeAtABadHourScoresNothing() {
+        XCTAssertEqual(timing(sdMin: 140, outsideMin: 200), 0)
+    }
+
+    /// A scattered schedule still earns the part of the section it deserves.
+    /// Zeroing it because the spread is wide would throw away a real fact about
+    /// the night — that it started at a sensible hour.
+    func testAScatteredBedtimeAtAGoodHourIsNotZero() {
+        guard let score = timing(sdMin: 140, outsideMin: 0) else { return XCTFail("scoreable") }
+        XCTAssertGreaterThan(score, 0)
+        XCTAssertLessThan(score, 45, "and it is still mostly a verdict on the spread")
     }
 
     /// The middle has to be usable, or the section is a pass/fail badge. An
     /// hour of spread is common and ordinary and should read as neither.
+    /// Measured on its own, with no hour to lift it.
     func testAnHourOfSpreadLandsInTheMiddle() {
-        guard let score = timing(sdMin: 60) else { return XCTFail("scoreable") }
+        guard let score = timing(sdMin: 60, outsideMin: nil) else { return XCTFail("scoreable") }
         XCTAssertGreaterThan(score, 35)
         XCTAssertLessThan(score, 70)
     }
 
-    func testWithoutEnoughNightsTimingIsAbsentRatherThanZero() {
-        XCTAssertNil(timing(sdMin: nil),
+    func testWithNeitherHalfTimingIsAbsentRatherThanZero() {
+        XCTAssertNil(timing(sdMin: nil, outsideMin: nil),
                      "a section with no input is absent — scoring it zero would blame the sleeper "
-                     + "for not having worn the strap three times yet")
+                     + "for what was never measured")
     }
 }
