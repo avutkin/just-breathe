@@ -153,6 +153,34 @@
   .legend-row .sw { height: 9px; border-radius: 5px; } .legend-row .m { font-weight: 600; font-variant-numeric: tabular-nums; } .legend-row .p { color: var(--dim); font-size: 12px; }
   .gloss { font-size: 11px; color: var(--dim); margin-top: 8px; line-height: 1.45; }
   .gloss b { color: var(--text); font-weight: 600; }
+  .score-big { font-size: 40px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; margin: 2px 0 8px; }
+  .score-big small { font-size: 12px; color: var(--dim); font-weight: 500; margin-left: 4px; }
+  .srow { display: grid; grid-template-columns: 82px 34px 1fr 40px; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+  .srow .k { color: var(--dim); } .srow .s { text-align: right; line-height: 1.05; }
+  .srow .s b { font-size: 14px; } .srow .s small { display: block; font: 8.5px var(--mono); color: var(--dim); }
+  .srow .bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .srow .bar i { display: block; height: 100%; background: var(--hrv); border-radius: 3px; }
+  .srow .n { font: 11px var(--mono); text-align: right; }
+  .part { margin: 8px 0 10px; }
+  .part .h { display: flex; align-items: baseline; gap: 8px; font-size: 11px; }
+  .part .h .l { font-weight: 600; } .part .h .d { margin-left: auto; font: 11px var(--mono); }
+  .part .h .sc { font: 650 11px var(--mono); width: 24px; text-align: right; }
+  .part .track { position: relative; height: 9px; margin: 5px 0 3px; }
+  .part .track .rail { position: absolute; left: 0; right: 0; top: 2px; height: 5px; background: var(--border); border-radius: 3px; }
+  .part .track .fill { position: absolute; left: 0; top: 2px; height: 5px; border-radius: 3px; opacity: .5; }
+  .part .track .dot { position: absolute; top: 0; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--card); box-sizing: border-box; }
+  .part .ends { display: flex; justify-content: space-between; font: 8.5px var(--mono); color: var(--dim); }
+  .part.bad .d, .part.bad .fill, .part.bad .dot { color: var(--warn); background: var(--warn); }
+  .part.mid .d, .part.mid .fill, .part.mid .dot { color: var(--hold); background: var(--hold); }
+  .part.good .d, .part.good .fill, .part.good .dot { color: var(--accent); background: var(--accent); }
+  .part .d { background: none !important; }
+  .slot-open { margin: 2px 0 10px; padding: 0 0 8px; border-bottom: 1px solid var(--border); }
+  .weak { font-size: 10.5px; color: var(--dim); margin-top: 6px; line-height: 1.4; }
+  .weak b { font: 650 9px var(--mono); letter-spacing: .06em; color: var(--dim); display: block; margin-bottom: 2px; }
+  .hl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 22px; margin: 0 0 20px; }
+  .hl .v { font-weight: 650; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .hl .c { font-size: 11px; color: var(--dim); line-height: 1.35; margin-top: 2px; }
+  .montage .group { font: 650 10px var(--mono); fill: var(--dim); letter-spacing: .1em; text-transform: uppercase; }
   .montage { width: 100%; height: 440px; display: block; }
   .montage .lane-label { font: 650 10px var(--mono); fill: var(--dim); letter-spacing: .06em; text-transform: uppercase; }
   .montage .lane-tech { font: 9.5px var(--mono); fill: var(--dim); opacity: .7; }
@@ -309,8 +337,9 @@
         <div class="panel">
           <h2>The night <span class="sub" id="night-sub"></span></h2>
           <div id="night-hero"></div>
+          <div id="night-highlights"></div>
           <div class="night-grid">
-            <div><h3>How this number was made</h3><div id="night-arith"></div></div>
+            <div><h3>The night score</h3><div id="night-arith"></div></div>
             <div><h3>Sections</h3><div id="night-sections"></div></div>
             <div><h3>Stages</h3><div id="night-stages"></div></div>
             <div><h3>Position</h3><div id="night-positions"></div></div>
@@ -970,23 +999,38 @@
   const NIGHT_NOT_SYNCED = "recorded by an app build from before nights synced — the score, stages and position arrive once this phone runs the current build";
   function nightTile(n) {
     if (!n) return `<div class="kpi"><div class="label">Night score</div><div class="value">—</div><div class="note">${NIGHT_NOT_SYNCED}</div></div>`;
-    const present = SLEEP_SECTIONS.filter(([k]) => n.sections && n.sections[k] != null).length;
+    const secs = sectionsFor(n);
+    const present = secs.filter(([k]) => n.sections && n.sections[k] != null).length;
     const value = n.score == null ? "—" : `${n.score}<small>/100 night score</small>`;
-    const note = n.score == null ? `${present} of 5 sections · needs 2 to score`
-                                  : `${present} of 5 sections · as in the app`;
+    const note = n.score == null ? `${present} of ${secs.length} sections · needs 2 to score`
+                                  : `${present} of ${secs.length} sections · as in the app · v${n.algorithm_version ?? "?"}`;
     return `<div class="kpi"><div class="label">Night score</div><div class="value ${n.score == null ? "" : n.score >= 70 ? "up" : n.score >= 45 ? "flat" : ""}">${value}</div><div class="note">${note}</div></div>`;
   }
 
   // ── The night ─────────────────────────────────────────────────────────
   // [key, name, weight, absent-reason] — SleepSection in the app, weights
   // fixed and visible so the score is checkable by hand.
+  // [key, name, weight, absent-reason, where-it-is-weak] — SleepSection in the
+  // app: four sections, each a quarter. Breathing folded into continuity.
   const SLEEP_SECTIONS = [
-    ["timing",     "Timing",     0.25, "needs a second night"],
-    ["duration",   "Duration",   0.25, "no sleep time"],
-    ["continuity", "Continuity", 0.15, "no stages"],
-    ["autonomic",  "Autonomic",  0.20, "no heart rate"],
-    ["breathing",  "Breathing",  0.15, "needs respiratory effort"],
+    ["timing",     "Timing",     0.25, "no bedtime recorded",
+     "The hour is scored against a 22:00–23:00 window, and both ends count — very early nights are associated with raised risk much as late ones are. That evidence is weaker than the regularity evidence. Consistency needs three nights; until then the hour is scored on its own."],
+    ["duration",   "Duration",   0.25, "no sleep time",
+     "Sleep need varies by about ±0.7 h between people and is a fixed figure here rather than yours. Sleeping longer than your need is not scored as a fault."],
+    ["continuity", "Continuity", 0.25, "no stages",
+     "Wake is the weakest thing any wearable measures — specificity runs 29–52% — and arousals shorter than a minute are smoothed away entirely. Read this as a description of the night, not a count."],
+    ["autonomic",  "Autonomic",  0.25, "no heart rate",
+     "Vagal tone is read inside quiet sleep only: it drops through REM, so a whole-night average is partly a measure of how much REM you had. Needs a few nights before there is a baseline to compare against."],
   ];
+  // Nights from the five-section pipeline (algorithm ≤ 19) carried Breathing
+  // as its own axis with the old weights; shown as they were scored.
+  const LEGACY_SECTIONS = [
+    ["timing", "Timing", 0.25, "needs a second night", ""], ["duration", "Duration", 0.25, "no sleep time", ""],
+    ["continuity", "Continuity", 0.15, "no stages", ""], ["autonomic", "Autonomic", 0.20, "no heart rate", ""],
+    ["breathing", "Breathing", 0.15, "needs respiratory effort", ""],
+  ];
+  const sectionsFor = (n) => (n.sections && n.sections.breathing != null) ? LEGACY_SECTIONS : SLEEP_SECTIONS;
+  const NEED_MIN = 465; // SleepThresholds.defaultNeedSec — 7h 45m
   // SleepStageDetail order — depth is vertical position in the ribbon; wake
   // takes a neutral rather than a rung on the sleep ramp.
   const STAGES = [
@@ -1027,38 +1071,61 @@
     }
     const inBed = n.in_bed_min ?? ((a.started_at && a.ended_at) ? Math.round((new Date(a.ended_at) - new Date(a.started_at)) / 60000) : null);
     const eff = (n.asleep_min != null && inBed) ? Math.round(n.asleep_min / inBed * 100) : null;
+    const secs = sectionsFor(n);
     $("#night-sub").textContent = `— ${clockOf(a.started_at)} → ${a.ended_at ? clockOf(a.ended_at) : "…"}`;
+    const corrected = n.detected_start && n.detected_end
+      ? `<div class="clock" style="flex-basis:100%;color:var(--dim)">the detector proposed ${clockOf(n.detected_start)} → ${clockOf(n.detected_end)}; the sleeper moved it${n.corrected_at ? " on " + fmtTime(n.corrected_at) : ""}</div>` : "";
     $("#night-hero").innerHTML = `<div class="night-hero">
       <div><div class="big"><small>Time asleep</small>${hm(n.asleep_min)}</div>
            <div class="sub2">${hm(inBed)} in bed${eff == null ? "" : ` · ${eff}% efficiency`}</div></div>
       <div class="clock"><span class="k">asleep</span><b>${clockOf(a.started_at)}</b></div>
       <div class="clock"><span class="k">woke</span><b>${a.ended_at ? clockOf(a.ended_at) : "—"}</b></div>
-      ${n.regularity != null ? `<div class="clock"><span class="k">regularity</span><b>${Math.round(n.regularity)}</b></div>` : ""}
-      ${n.wake_bouts != null ? `<div class="clock"><span class="k">wake bouts</span><b>${n.wake_bouts}</b>${n.longest_wake_min != null ? ` <span class="k">· longest</span><b>${n.longest_wake_min} min</b>` : ""}</div>` : ""}
-      ${n.lowest_hr != null ? `<div class="clock"><span class="k">lowest pulse</span><b>${Math.round(n.lowest_hr)}</b>${n.lowest_hr_at ? ` <span class="k">at</span><b>${clockOf(n.lowest_hr_at)}</b>` : ""}</div>` : ""}
+      ${n.bedtime_sd_min != null ? `<div class="clock"><span class="k">bedtime varies</span><b>±${Math.round(n.bedtime_sd_min)}m</b></div>` : n.regularity != null ? `<div class="clock"><span class="k">regularity</span><b>${Math.round(n.regularity)}</b></div>` : ""}
+      ${n.wake_bouts != null ? `<div class="clock"><span class="k">wake bouts</span><b>${n.wake_bouts}</b>${n.longest_wake_min != null ? ` <span class="k">· longest wake</span><b>${n.longest_wake_min} min</b>` : ""}</div>` : ""}
+      ${n.longest_unbroken_min != null ? `<div class="clock"><span class="k">longest unbroken</span><b>${hm(n.longest_unbroken_min)}</b></div>` : ""}
       ${n.stage_summary ? `<div class="clock" style="flex-basis:100%">${esc(n.stage_summary)}</div>` : ""}
+      ${corrected}
     </div>`;
 
-    // Points each section put into the headline — weight × its score.
-    const contrib = SLEEP_SECTIONS.filter(([k]) => n.sections && n.sections[k] != null)
-      .map(([k, name, w]) => [name, w * n.sections[k]]);
-    const maxPts = Math.max(0, ...contrib.map(c => c[1]));
-    $("#night-arith").innerHTML = (n.arithmetic ? `<div class="arith">${esc(n.arithmetic)}</div>` : "")
-      + contrib.map(([name, pts]) => `<div class="bar-row"><span class="k">${name}</span><span class="bar"><i style="width:${maxPts ? pts / maxPts * 100 : 0}%"></i></span><span class="n">${pts.toFixed(1)}</span></div>`).join("")
-      + `<div class="gloss">Weights are fixed and visible. Every section is scored against the person's own baseline, never a population threshold.</div>`;
+    // The night score, the app's way: the total, then each section's score,
+    // its weight and the points it contributed — the right-hand column sums
+    // to the headline, which is the whole claim being made.
+    const rows = secs.map(([k, name, w]) => [name, n.sections ? n.sections[k] : null, w]);
+    const live = rows.filter(r => r[1] != null).reduce((t, r) => t + r[2], 0) || 1;
+    $("#night-arith").innerHTML = `<div class="score-big">${n.score ?? "—"}<small>/ 100</small></div>
+      <div class="gloss" style="margin:0 0 8px">${secs.length === 4 ? "Four sections, each worth a quarter." : "Five sections, weighted as they were scored."} Every one is scored against the person's own baseline, never a population threshold.</div>`
+      + rows.map(([name, v, w]) => `<div class="srow"><span class="k">${name}</span>
+          <span class="s"><b>${v == null ? "—" : v}</b><small>×${Math.round(w / live * 100)}%</small></span>
+          <span class="bar"><i style="width:${v == null ? 0 : v}%"></i></span>
+          <span class="n">${v == null ? "—" : (w / live * v).toFixed(1)}</span></div>`).join("")
+      + (n.arithmetic ? `<div class="weak"><b>THE ARITHMETIC</b>${esc(n.arithmetic)}</div>` : "");
 
+    // Section detail lines, worded as the app words them.
+    const need = `${Math.floor(NEED_MIN / 60)}h ${String(NEED_MIN % 60).padStart(2, "0")}m`;
     const detail = {
-      timing:     n.regularity != null ? `regularity index ${Math.round(n.regularity)}` : "how steady the hours are",
-      duration:   n.asleep_min != null ? `${hm(n.asleep_min)} asleep` : "time asleep",
+      timing:     `asleep ${clockOf(a.started_at)}${n.bedtime_sd_min != null ? ` · varies ±${Math.round(n.bedtime_sd_min)}m` : n.regularity != null ? ` · regularity index ${Math.round(n.regularity)}` : ""}`,
+      duration:   n.asleep_min != null ? `${hm(n.asleep_min)} of your ${need} need` : "time asleep",
       continuity: n.stage_summary || "how unbroken the night was",
-      autonomic:  "how far the heart rate settled, and when",
+      autonomic:  "how far the heart rate settled, when, and vagal tone against the usual",
       breathing:  "steadiness of breathing overnight",
     };
-    $("#night-sections").innerHTML = SLEEP_SECTIONS.map(([k, name, w, whenEmpty]) => {
+    // What each section was made of: a value on the range it was read
+    // against, with the score that position earned. Absent on nights from
+    // before the app stored its working.
+    const partBar = (p) => {
+      const pos = p.best === p.worst ? 0 : Math.min(1, Math.max(0, (p.value - p.worst) / (p.best - p.worst)));
+      const cls = p.score < 34 ? "bad" : p.score < 67 ? "mid" : "good";
+      return `<div class="part ${cls}"><div class="h"><span class="l">${esc(p.label)}</span><span class="d">${esc(p.display)}</span><span class="sc">${Math.round(p.score)}</span></div>
+        <div class="track"><span class="rail"></span><span class="fill" style="width:${(pos * 100).toFixed(1)}%"></span><span class="dot" style="left:calc(${(pos * 100).toFixed(1)}% - 4px)"></span></div>
+        <div class="ends"><span>${esc(p.worstLabel)}</span>${p.weight < 1 ? `<span>${Math.round(p.weight * 100)}% of this section</span>` : ""}<span>${esc(p.bestLabel)}</span></div></div>`;
+    };
+    $("#night-sections").innerHTML = secs.map(([k, name, w, whenEmpty, weak]) => {
       const v = n.sections ? n.sections[k] : null;
+      const parts = (n.parts && n.parts[k]) || [];
       return `<div class="slot"><span class="k">${name}<span class="d" style="display:block;font-weight:400">${esc(detail[k])}</span></span>
         <span class="d">${v == null ? whenEmpty : `<span class="verdict ${band(v)}">${VERDICT[band(v)]}</span>`}</span>
-        <span class="v ${v == null ? "none" : ""}">${v == null ? "not measured" : v}</span></div>`;
+        <span class="v ${v == null ? "none" : ""}">${v == null ? "not measured" : v}</span></div>`
+        + (parts.length || weak ? `<div class="slot-open">${parts.map(partBar).join("")}${weak ? `<div class="weak"><b>WHERE IT IS WEAK</b>${weak}</div>` : ""}</div>` : "");
     }).join("");
 
     const st = n.stages || {};
@@ -1077,6 +1144,47 @@
           ? "Not recorded on this night. The strap stored only the strength of movement, not its direction, so which way the person lay was never on disk."
           : n.position_recorded ? "Measured, but no one position was held for two minutes together, so there is no stretch long enough to draw."
           : "Position was not part of this upload — the night predates the sync, or the app has not re-recorded it yet."}</div>`;
+    $("#night-highlights").innerHTML = "";
+  }
+
+  // Highlights, the app's card: only what can be computed, and nothing that
+  // is true of every night. The nadir comes from the night's own record; the
+  // rest is read off the synced ticks against the hypnogram, so it waits for
+  // the series.
+  function renderHighlights(a, pts) {
+    const n = a.sleep || {}, host = $("#night-highlights");
+    const x0 = new Date(a.started_at).getTime(), x1 = new Date(a.ended_at || a.started_at).getTime();
+    const runs = (n.stage_runs || []).map(r => ({ stage: r.stage, s: new Date(r.start).getTime(), e: new Date(r.end).getTime() }));
+    const inStage = (t, stage) => runs.some(r => r.stage === stage && t >= r.s && t < r.e);
+    const series = (col) => pts.map(p => ({ t: new Date(p.ts).getTime(), v: p[col] })).filter(p => p.v != null && p.t >= x0 && p.t <= x1);
+    const items = [];
+    const hr = series("mean_bpm");
+    if (n.lowest_hr != null && n.lowest_hr_at) {
+      const typ = hr.length ? hr.map(p => p.v).sort((p, q) => p - q)[Math.floor(hr.length / 2)] : null;
+      items.push([`${Math.round(n.lowest_hr)} bpm at ${clockOf(n.lowest_hr_at)}`, `the lowest pulse${typ != null ? ` — ${Math.round(typ - n.lowest_hr)} bpm under the night's typical` : ""}`]);
+    }
+    const dc = series("dc");
+    if (dc.length) {
+      const hi = dc.reduce((m, p) => p.v > m.v ? p : m, dc[0]), lo = Math.min(...dc.map(p => p.v));
+      items.push([`${hi.v.toFixed(1)} ms at ${clockOf(hi.t)}`, `vagal tone at its strongest; it ran as low as ${lo.toFixed(1)} ms`]);
+    }
+    const br = series("breath_bpm");
+    if (br.length && runs.length) {
+      const mean = (arr) => arr.length ? arr.reduce((t, p) => t + p.v, 0) / arr.length : null;
+      const deep = mean(br.filter(p => inStage(p.t, "n3"))), wake = mean(br.filter(p => inStage(p.t, "wake")));
+      if (deep != null && wake != null) items.push([`${deep.toFixed(1)} vs ${wake.toFixed(1)} br/min`,
+        deep > wake ? "breathed faster in deep sleep than during the awake stretches — sleep breathing is regular rather than slow, and the awake minutes here are lying still"
+                    : "breath ran slower in deep sleep than during the awake stretches"]);
+    }
+    if (runs.length) {
+      let best = 0, run = 0;
+      runs.forEach(r => { if (r.stage !== "wake") { run += r.e - r.s; best = Math.max(best, run); } else run = 0; });
+      if (best > 0) items.push([hm(Math.round(best / 60000)), "the longest unbroken stretch of sleep"]);
+    }
+    const pos = n.positions || [], known = pos.reduce((t, p) => t + p.minutes, 0), sup = pos.find(p => p.position === "Supine");
+    if (known && sup) items.push([`${Math.round(sup.minutes / known * 100)}% on the back`, "of the time the position was known"]);
+    host.innerHTML = items.length ? `<h3 style="font:650 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 8px">Highlights from the night</h3><div class="hl">`
+      + items.map(([v, c]) => `<div><div class="v">${esc(v)}</div><div class="c">${esc(c)}</div></div>`).join("") + `</div>` : "";
   }
 
   // The montage: hypnogram ribbon, position bands, then pulse with its nadir,
@@ -1157,13 +1265,27 @@
     // Metric lanes from the tick stream, clipped to the night.
     const series = (col) => pts.map(s => ({ t: new Date(s.ts).getTime(), v: s[col] }))
                                .filter(p => p.v != null && isFinite(p.v) && p.t >= x0 && p.t <= x1);
-    const lanes = [
-      ["Pulse", "HR · bpm", "mean_bpm", "var(--warn)", 0],
-      ["Calm Power", "RMSSD · ms", "rmssd", "var(--hrv)", 0],
-      ["Breath Rate", "br/min", "breath_bpm", "var(--breathe)", 1],
+    // Grouped the way the app groups them: each section's traces under the
+    // section, then the channels nothing scores. Timing and duration have no
+    // trace — one is a fact about a fortnight of bedtimes, the other a total.
+    const groups = [
+      ["Continuity — what feeds the score", [["Breath Rate", "br/min", "breath_bpm", "var(--breathe)", 1]]],
+      ["Autonomic — what feeds the score", [
+        ["Pulse", "HR · bpm", "mean_bpm", "var(--warn)", 0],
+        ["Vagal Tone", "DC · ms", "dc", "var(--coh)", 1],
+        ["Calm Power", "RMSSD · ms", "rmssd", "var(--hrv)", 0],
+        ["Inner Noise", "PIP · %", "pip", "var(--breathe)", 0]]],
+      ["Other channels — recorded, not scored", [
+        ["Conscious Breathing", "RSA · ms", "rsa_ms", "var(--rsa)", 0],
+        ["Adaptive Capacity", "RCMSE", "rcmse", "var(--accent)", 2],
+        ["Harmony", "DFA α1", "dfa1", "var(--coh)", 2],
+        ["HRV Spread", "SDNN · ms", "sdnn", "var(--hrv)", 0]]],
     ];
     const H = 70;
+    const lanes = [];
+    groups.forEach(([title, ls]) => { lanes.push(["__group__", title]); ls.forEach(l => lanes.push(l)); });
     lanes.forEach(([label, tech, col, color, dp]) => {
+      if (label === "__group__") { el += `<text class="group" x="0" y="${y + 12}">${tech}</text>`; y += 22; return; }
       const s = series(col);
       const avg = s.length ? s.reduce((t, p) => t + p.v, 0) / s.length : null;
       el += laneHead(y, label, tech, avg == null ? "" : fmt(avg, dp) + " avg");
@@ -1202,7 +1324,7 @@
     svg.setAttribute("viewBox", `0 0 ${W} ${y + 32}`);
     svg.style.height = (y + 32) + "px";
     svg.innerHTML = el;
-    $("#montage-note").textContent = "Three states are measured, not four: the light/deep boundary is the one a cardiac signal places worst. Wake is the least reliable channel any wearable has — treat the awake minutes as approximate. The hypnogram and position come from the app's own record of the night; pulse, HRV, breathing and movement are the synced ticks, bucketed to a minute.";
+    $("#montage-note").textContent = "How the stages were read: N2 and N3 are measured — the depth axis is coherence, variability and heart rate, ranked within this night. N1 is positional: it marks the light sleep either side of a wake bout. Stage totals are cut at typical adult shares, so read the shape rather than the minutes. Wake is the least reliable channel any wearable has — treat the awake minutes as approximate. The hypnogram and position come from the app's own record of the night; every trace is the synced ticks, bucketed to a minute.";
   }
 
   // One card per metric: three bars — before, during, after — so the shape of
@@ -1222,7 +1344,7 @@
     const pts = d.samples || [];
     if (!pts.length) {
       host.innerHTML = `<div class="empty">no per-tick data recorded around this activity</div>`;
-      if (a.activity_type === "Sleep") drawMontage(a, []);
+      if (a.activity_type === "Sleep") { drawMontage(a, []); if (a.sleep) renderHighlights(a, []); };
       return;
     }
     const meta = {
@@ -1231,7 +1353,7 @@
       wStart: new Date(d.window_start).getTime(),
       wEnd:   new Date(d.window_end).getTime(),
     };
-    if (a.activity_type === "Sleep") drawMontage(a, pts);
+    if (a.activity_type === "Sleep") { drawMontage(a, pts); if (a.sleep) renderHighlights(a, pts); }
     host.innerHTML = ACT_METRICS.map(([label, key, dp, higherBetter]) => {
       const col = ACT_SERIES_COL[key];
       const af = a[`after_${key}`];
