@@ -89,8 +89,8 @@ final class SleepScoreTests: XCTestCase {
     func testSectionsAndOverallAreTheWeightedMean() {
         let s = SleepScore.compute(settled())
 
-        XCTAssertEqual(s.sections.count, 5)
-        guard let overall = s.overall else { return XCTFail("all five sections present") }
+        XCTAssertEqual(s.sections.count, 4)
+        guard let overall = s.overall else { return XCTFail("all four sections present") }
 
         // The whole point of this score is that it is checkable by hand.
         let byHand = SleepSection.allCases.reduce(0.0) { acc, sec in
@@ -105,11 +105,15 @@ final class SleepScoreTests: XCTestCase {
     }
 
     func testRegularityAndDurationCarryTheMostWeight() {
-        // The evidence ranking must be visible in the model, not just the docs.
-        XCTAssertEqual(SleepSection.timing.weight, 0.25, accuracy: 0.0001)
-        XCTAssertEqual(SleepSection.duration.weight, 0.25, accuracy: 0.0001)
-        XCTAssertGreaterThan(SleepSection.timing.weight, SleepSection.continuity.weight)
-        XCTAssertGreaterThan(SleepSection.duration.weight, SleepSection.breathing.weight)
+        // Four sections, equal quarters, summing to one. Equal because the
+        // exchange rate between them is not published — see SleepSection.
+        XCTAssertEqual(SleepSection.allCases.count, 4)
+        for section in SleepSection.allCases {
+            XCTAssertEqual(section.weight, 0.25, accuracy: 0.0001, "\(section.name)")
+        }
+        XCTAssertEqual(SleepSection.allCases.reduce(0) { $0 + $1.weight }, 1.0, accuracy: 0.0001)
+        XCTAssertFalse(SleepSection.allCases.contains { $0.name == "Breathing" },
+                       "breath steadiness is an input to continuity, not an axis of its own")
     }
 
     func testAbsentSectionRenormalisesRatherThanScoringZero() {
@@ -120,7 +124,7 @@ final class SleepScoreTests: XCTestCase {
         let s = SleepScore.compute(input)
 
         XCTAssertNil(s.sections[.timing])
-        XCTAssertEqual(s.sections.count, 4)
+        XCTAssertEqual(s.sections.count, 3)
 
         let present = SleepScore.compute(settled())
         XCTAssertGreaterThan(s.overall ?? 0, (present.overall ?? 0) - 25,

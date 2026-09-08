@@ -173,7 +173,11 @@ enum SleepThresholds {
     /// scores it against this sleeper's own recent nights rather than an
     /// absolute 22–62 ms band. Deceleration capacity joins RMSSD and carries
     /// the larger share. Every stored night's autonomic score changes.
-    static let algorithmVersion: Int = 17
+    /// 18: four sections, equal quarters. Breath steadiness stopped being an
+    /// axis of its own — it measured whether you were asleep, which continuity
+    /// already scored — and became continuity's third input. Every stored
+    /// night's overall and continuity change.
+    static let algorithmVersion: Int = 18
     /// Shortest run that can stand as its own stage. Sleep changes state on
     /// the scale of minutes; anything briefer is a turn or a dropped estimate,
     /// and leaving it in inflates every count derived from the hypnogram.

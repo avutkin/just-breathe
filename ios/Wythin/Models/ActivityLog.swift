@@ -243,6 +243,9 @@ final class ActivityLog {
     var sleepDuration: Int?
     var sleepContinuity: Int?
     var sleepAutonomic: Int?
+    /// Superseded. Breath steadiness is an input to continuity now, not a
+    /// section — see `SleepSection`. No longer written; kept so existing stores
+    /// migrate without a schema change.
     var sleepBreathing: Int?
 
     /// Four-stage minutes. Stored so the row and detail can show them without

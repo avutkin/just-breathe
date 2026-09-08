@@ -224,7 +224,6 @@ extension ActivityLog {
             ("Duration", sleepSection(.duration, sleepDuration), "no sleep time"),
             ("Continuity", sleepSection(.continuity, sleepContinuity), "no stages"),
             ("Autonomic", sleepSection(.autonomic, sleepAutonomic), "no heart rate"),
-            ("Breathing", sleepSection(.breathing, sleepBreathing), "needs respiratory effort"),
         ]
     }
 
@@ -251,8 +250,6 @@ extension ActivityLog {
             return sleepStageSummary ?? "how unbroken the night was"
         case .autonomic:
             return "how far your heart rate settled, when, and your vagal tone against your usual"
-        case .breathing:
-            return "steadiness of breathing overnight"
         }
     }
 }

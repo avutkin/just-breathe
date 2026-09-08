@@ -118,14 +118,14 @@ final class SleepRecorderTests: XCTestCase {
         }
     }
 
-    func testNightPresentsItsOwnFiveSections() {
+    func testNightPresentsItsOwnFourSections() {
         let ctx = ModelContext(container)
         insertNight(into: ctx)
         SleepRecorder.recordIfDue(context: ctx, now: at(21, 8))
         guard let night = sleepLogs(ctx).first else { return XCTFail("no night") }
 
         let names = night.indexSlots.map(\.name)
-        XCTAssertEqual(names, ["Timing", "Duration", "Continuity", "Autonomic", "Breathing"])
+        XCTAssertEqual(names, ["Timing", "Duration", "Continuity", "Autonomic"])
     }
 
     func testBreathingIsMeasuredWhenBreathRateExists() {
@@ -139,10 +139,11 @@ final class SleepRecorderTests: XCTestCase {
         SleepRecorder.recordIfDue(context: ctx, now: at(21, 8))
         guard let night = sleepLogs(ctx).first else { return XCTFail("no night") }
 
-        XCTAssertNotNil(night.sleepBreathing, "breath rate was recorded, so steadiness is derivable")
+        XCTAssertNotNil(night.sleepContinuity,
+                        "breath rate was recorded, so steadiness feeds continuity")
     }
 
-    func testASectionWithNoInputStaysAbsentRatherThanZero() {
+    func testContinuityIsStillScoredWithoutABreathChannel() {
         // The principle the previous test was protecting, on a case where the
         // input genuinely is missing. Zero would read as "your breathing was
         // terrible"; absent reads as "we did not measure it".
@@ -160,8 +161,11 @@ final class SleepRecorderTests: XCTestCase {
         SleepRecorder.recordIfDue(context: ctx, now: at(21, 8))
         guard let night = sleepLogs(ctx).first else { return XCTFail("no night") }
 
-        XCTAssertNil(night.sleepBreathing)
-        XCTAssertNil(night.indexSlots.first { $0.name == "Breathing" }?.index)
+        // Breath rate is absent for every tick here. Steadiness is one of
+        // three inputs to continuity now, so the section is still scored —
+        // from the two that are present — rather than dropping out.
+        XCTAssertNotNil(night.indexSlots.first { $0.name == "Continuity" }?.index,
+                        "the longest stretch and the bout count still describe the night")
     }
 
     func testNightDoesNotGetARestorativePracticeScore() {

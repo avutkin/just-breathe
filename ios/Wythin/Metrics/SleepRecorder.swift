@@ -487,7 +487,6 @@ enum SleepRecorder {
         log.sleepDuration = score.sections[.duration]
         log.sleepContinuity = score.sections[.continuity]
         log.sleepAutonomic = score.sections[.autonomic]
-        log.sleepBreathing = score.sections[.breathing]
     }
 }
 

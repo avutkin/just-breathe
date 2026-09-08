@@ -145,7 +145,6 @@ extension SleepInsightPayload {
         let pairs: [(SleepSection, Int?)] = [
             (.timing, entry.sleepTiming), (.duration, entry.sleepDuration),
             (.continuity, entry.sleepContinuity), (.autonomic, entry.sleepAutonomic),
-            (.breathing, entry.sleepBreathing),
         ]
         // A section with no input has not been measured. Sending it as 0 would
         // hand the model a verdict the app itself refuses to print.

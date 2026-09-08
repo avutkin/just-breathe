@@ -10,19 +10,34 @@ import Foundation
 /// measured on hardware that agrees with polysomnography at κ 0.21–0.53. A
 /// number precise enough to be believed and wrong often enough to mislead does
 /// not belong in a score.
+/// Four sections, not five.
+///
+/// Breathing was scored as its own axis and was not one. What it measured is
+/// the steadiness of the breath *rate* — and `SleepBreathing`'s own
+/// documentation calls that "the single best wake/sleep discriminator", with
+/// the identical signal feeding the wake classifier. So it was a second
+/// measurement of whether you were asleep, sitting beside continuity, which
+/// measures the same thing. Two of five sections, 30% of the number, one
+/// construct. On a real night they read 100 and 3 across the same eleven hours.
+///
+/// It is now an input to continuity, which is what it was all along.
+///
+/// The airway — apnea and hypopnea events, the thing that would earn a
+/// breathing section outright — is not built. When it is, it takes a fifth
+/// share and these fall to 20%.
 enum SleepSection: String, CaseIterable, Codable {
-    case timing, duration, continuity, autonomic, breathing
+    case timing, duration, continuity, autonomic
 
-    /// Fixed and visible, so the overall is checkable by hand.
-    var weight: Double {
-        switch self {
-        case .timing:     return 0.25   // SRI beat duration head-to-head
-        case .duration:   return 0.25   // the one dose–response people cannot feel
-        case .continuity: return 0.15   // real, but wake is the weakest channel
-        case .autonomic:  return 0.20   // ECG-grade, and ours to own
-        case .breathing:  return 0.15   // chest-strap exclusive, ordinal only
-        }
-    }
+    /// Fixed, visible, and equal.
+    ///
+    /// Equal is a deliberate admission rather than a shrug: the true weights
+    /// are not known. Regularity has the strongest outcome evidence, duration
+    /// the clearest dose–response, autonomic the only overnight metrics that
+    /// survived FDR correction in HypnoLaus, and continuity the weakest
+    /// measurement of the four. Nobody has published the exchange rate between
+    /// them. Four quarters a reader can check beats five numbers implying a
+    /// precision that does not exist.
+    var weight: Double { 0.25 }
 
     /// Band wording for a night. The exercise vocabulary ("act on it", "keep
     /// doing this") reads as instructions about a workout you chose; nobody
@@ -42,7 +57,6 @@ enum SleepSection: String, CaseIterable, Codable {
         case .duration:   return "Duration"
         case .continuity: return "Continuity"
         case .autonomic:  return "Autonomic"
-        case .breathing:  return "Breathing"
         }
     }
 }
@@ -117,9 +131,24 @@ struct SleepScore {
             sections[.duration] = round(ramp(-shortfall, worst: -(150 * 60), best: 0))
         }
         if let longest = input.longestUnbrokenSec, let bouts = input.wakeBouts {
-            let stretch = ramp(longest, worst: 45 * 60, best: 180 * 60)
-            let broken = ramp(Double(-bouts), worst: -12, best: -2)
-            sections[.continuity] = round(0.55 * stretch + 0.45 * broken)
+            // Three views of one question: how much of the night held together.
+            // The longest stretch carries most of it — one four-hour block is
+            // not eight thirty-minute ones at the same total — then the count
+            // of breaks, then the breath.
+            //
+            // Breath steadiness is here rather than in a section of its own
+            // because it measures the same thing from a third channel. It is
+            // weighted least of the three: it is ordinal, self-referential, and
+            // reads high on nights with real awake time in them.
+            var parts: [(Double, Double)] = [
+                (0.45, ramp(longest, worst: 45 * 60, best: 180 * 60)),
+                (0.35, ramp(Double(-bouts), worst: -12, best: -2)),
+            ]
+            if let steady = input.steadyFraction {
+                parts.append((0.20, ramp(steady, worst: 0.45, best: 0.90)))
+            }
+            let total = parts.reduce(0) { $0 + $1.0 }
+            sections[.continuity] = round(parts.reduce(0) { $0 + $1.0 * $1.1 } / total)
         }
         if let dip = input.hrNadirDip {
             // Depth, then placement, then the night's own vagal level. A nadir
@@ -147,14 +176,6 @@ struct SleepScore {
             }
             let totalWeight = parts.reduce(0) { $0 + $1.0 }
             sections[.autonomic] = round(parts.reduce(0) { $0 + $1.0 * $1.1 } / totalWeight)
-        }
-        if let steady = input.steadyFraction {
-            // Anchored on measurement, not on a guess. A settled night on this
-            // hardware runs about 76% steady, so the original 0.70–0.98 span
-            // scored an ordinary night at zero — the section read as a verdict
-            // on the wearer's breathing when it was really a verdict on the
-            // anchors.
-            sections[.breathing] = round(ramp(steady, worst: 0.45, best: 0.90))
         }
 
         let present = SleepSection.allCases.filter { sections[$0] != nil }

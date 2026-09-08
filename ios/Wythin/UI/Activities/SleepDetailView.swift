@@ -21,6 +21,10 @@ struct SleepDetailView: View {
     /// the arithmetic, the sections — comes straight off the stored record and
     /// draws immediately; only the sample-derived parts wait.
     @State private var night: PreparedNight?
+    /// One instant across every channel on the screen — the hypnogram, the
+    /// movement strip and each section's traces. Owned here now that they are
+    /// separate views rather than one montage.
+    @State private var selectedX: Date?
 
     private func hm(_ minutes: Int) -> String {
         "\(minutes / 60)h \(String(format: "%02d", minutes % 60))m"
@@ -47,12 +51,42 @@ struct SleepDetailView: View {
                 if entry.sleepScore != nil { arithmetic }
                 sections
                 if let night, !night.points.isEmpty, let end = entry.endedAt {
-                    card("THE NIGHT, CHANNEL BY CHANNEL") {
+                    // Top-down: the shape of the night, then the body that
+                    // moved through it, then each section with the traces it is
+                    // actually made of. The nine metrics used to sit in one
+                    // strip in declaration order, which put deceleration
+                    // capacity nine scrolls from the score built on it.
+                    card("THE NIGHT — STAGES & MOVEMENT") {
                         SleepMontageChart(night: night,
                                           startedAt: entry.startedAt,
-                                          endedAt: end)
+                                          endedAt: end,
+                                          selectedX: $selectedX,
+                                          showsMetrics: false)
                     }
                     stageCaveat
+                    ForEach(SleepSection.allCases, id: \.self) { section in
+                        if !SleepSectionCharts.metrics(for: section).isEmpty {
+                            card(section.name.uppercased()) {
+                                SleepSectionChartGroup(night: night, section: section,
+                                                       startedAt: entry.startedAt,
+                                                       endedAt: end,
+                                                       selectedX: $selectedX)
+                            }
+                        }
+                    }
+                    if !SleepSectionCharts.unscored.isEmpty {
+                        card("OTHER CHANNELS") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Recorded through the night and not scored. They are here to be read, not to move the number.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Theme.dim)
+                                SleepMetricTraces(night: night,
+                                                  labels: SleepSectionCharts.unscored,
+                                                  startedAt: entry.startedAt, endedAt: end,
+                                                  selectedX: $selectedX)
+                            }
+                        }
+                    }
                 }
                 measurementNote
             }
@@ -243,7 +277,6 @@ struct SleepDetailView: View {
         let scores: [(SleepSection, Int?)] = [
             (.timing, entry.sleepTiming), (.duration, entry.sleepDuration),
             (.continuity, entry.sleepContinuity), (.autonomic, entry.sleepAutonomic),
-            (.breathing, entry.sleepBreathing),
         ]
         return scores.compactMap { section, value in
             value.map { (section.name, section.weight * Double($0)) }

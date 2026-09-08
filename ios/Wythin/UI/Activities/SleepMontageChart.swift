@@ -112,16 +112,32 @@ struct SleepMontageChart: View {
 
     private let night: PreparedNight
     private let ruler: MontageRuler
+    /// Whether this instance draws the nine metric traces underneath.
+    ///
+    /// False when the detail view is drawing them itself, grouped under the
+    /// section each one explains — vagal tone and pulse belong beside the
+    /// autonomic score, not in an undifferentiated strip of nine.
+    private let showsMetrics: Bool
 
-    init(night: PreparedNight, startedAt: Date, endedAt: Date) {
+    init(night: PreparedNight, startedAt: Date, endedAt: Date,
+         selectedX: Binding<Date?>? = nil, showsMetrics: Bool = true) {
         self.night = night
         self.ruler = MontageRuler(startedAt: startedAt, endedAt: endedAt)
+        self.showsMetrics = showsMetrics
+        _ownedSelection = State(initialValue: nil)
+        self.boundSelection = selectedX
     }
 
     /// The moment the tracker is pointing at, shared by every channel — the
     /// same idea as the Live screen's single `selectedX` across its charts.
     /// One line, one instant, eleven readings of it.
-    @State private var selectedX: Date?
+    /// Owned when this montage stands alone; bound when the detail view is
+    /// splitting the channels across sections and needs one instant across all
+    /// of them.
+    @State private var ownedSelection: Date?
+    private let boundSelection: Binding<Date?>?
+    private var selectedX: Binding<Date?> { boundSelection ?? $ownedSelection }
+
     @State private var plotWidth: Double = 0
 
     @Environment(\.modelContext) private var modelContext
@@ -160,7 +176,7 @@ struct SleepMontageChart: View {
     /// for: press a chart, read every channel at that instant. Tapping again
     /// moves the line; the header carries a control to clear it.
     private func place(_ x: Double) {
-        selectedX = ruler.date(atX: x, width: plotWidth)
+        selectedX.wrappedValue = ruler.date(atX: x, width: plotWidth)
     }
 
     // MARK: - Reading a single instant
@@ -297,7 +313,7 @@ struct SleepMontageChart: View {
             // view instead of arbitrating against it.
             .onTapGesture { location in place(location.x) }
 
-            metricChannels
+            if showsMetrics { metricChannels }
         }
     }
 
@@ -322,8 +338,8 @@ struct SleepMontageChart: View {
 
     /// The tracker line, drawn last in every channel so it sits above the ink.
     private func drawTracker(_ ctx: inout GraphicsContext, _ size: CGSize) {
-        guard let selectedX else { return }
-        let x = ruler.x(selectedX, width: size.width)
+        guard let moment = selectedX.wrappedValue else { return }
+        let x = ruler.x(moment, width: size.width)
         ctx.stroke(rule(x: x, height: size.height),
                    with: .color(Theme.text.opacity(0.8)), lineWidth: 1)
     }
@@ -439,7 +455,7 @@ struct SleepMontageChart: View {
 
     private var metricChannels: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let moment = selectedX {
+            if let moment = selectedX.wrappedValue {
                 HStack(spacing: 6) {
                     Text("AT")
                         .font(.system(size: 9, weight: .semibold, design: .monospaced))
@@ -458,7 +474,7 @@ struct SleepMontageChart: View {
                             .foregroundStyle(Theme.dim)
                     }
                     Spacer()
-                    Button("clear") { selectedX = nil }
+                    Button("clear") { selectedX.wrappedValue = nil }
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.dim)
                 }
@@ -487,7 +503,7 @@ struct SleepMontageChart: View {
                         yDomain: 0...1,
                         win: .h24,               // unused: `night` pins the span
                         night: ruler.startedAt...ruler.endedAt,
-                        selectedX: $selectedX,
+                        selectedX: selectedX,
                         panOffset: $cardPan,
                         smooth: true,
                         dynamicY: true,

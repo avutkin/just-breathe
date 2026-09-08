@@ -58,6 +58,7 @@
 		A124 /* PacerCircleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F124 /* PacerCircleView.swift */; };
 		A280 /* HoldProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F280 /* HoldProtocol.swift */; };
 		A281 /* BreathHoldEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F281 /* BreathHoldEngine.swift */; };
+		A286 /* SleepSectionCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F286 /* SleepSectionCharts.swift */; };
 		A283 /* BreathScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = F283 /* BreathScript.swift */; };
 		A284 /* ScriptedBreathEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F284 /* ScriptedBreathEngine.swift */; };
 		A285 /* ScriptedBreathSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F285 /* ScriptedBreathSessionView.swift */; };
@@ -360,6 +361,7 @@
 		F124 /* PacerCircleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacerCircleView.swift; sourceTree = "<group>"; };
 		F280 /* HoldProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldProtocol.swift; sourceTree = "<group>"; };
 		F281 /* BreathHoldEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreathHoldEngine.swift; sourceTree = "<group>"; };
+		F286 /* SleepSectionCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepSectionCharts.swift; sourceTree = "<group>"; };
 		F283 /* BreathScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreathScript.swift; sourceTree = "<group>"; };
 		F284 /* ScriptedBreathEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptedBreathEngine.swift; sourceTree = "<group>"; };
 		F285 /* ScriptedBreathSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptedBreathSessionView.swift; sourceTree = "<group>"; };
@@ -638,6 +640,7 @@
 			children = (
 				F776 /* SleepDetailView.swift */,
 				F775 /* SleepMontageChart.swift */,
+				F286 /* SleepSectionCharts.swift */,
 				F709 /* PreparedNight.swift */,
 				F772 /* SleepLogRow.swift */,
 				F137 /* ActivitiesView.swift */,
@@ -1304,6 +1307,7 @@
 				A124 /* PacerCircleView.swift in Sources */,
 				A280 /* HoldProtocol.swift in Sources */,
 				A281 /* BreathHoldEngine.swift in Sources */,
+				A286 /* SleepSectionCharts.swift in Sources */,
 				A283 /* BreathScript.swift in Sources */,
 				A284 /* ScriptedBreathEngine.swift in Sources */,
 				A285 /* ScriptedBreathSessionView.swift in Sources */,
