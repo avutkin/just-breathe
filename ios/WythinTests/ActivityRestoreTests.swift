@@ -72,6 +72,8 @@ final class ActivityRestoreTests: XCTestCase {
               "asleep_min":442,"in_bed_min":472,"regularity":81,"algorithm_version":13,"read_text":null,
               "sections":{"timing":65,"duration":80,"continuity":null,"autonomic":75,"breathing":70},
               "stages":{"wake":30,"rem":90,"n1":40,"n2":240,"n3":72},
+              "parts":{"duration":[{"label":"Against your need","value":-3600,"display":"1h 0m short","worstLabel":"2h30m short","bestLabel":"met","worst":-9000,"best":0,"score":60,"weight":1}]},
+              "quiet_rmssd":41.5,"quiet_dc":7.9,
               "wake_bouts":3,"longest_unbroken_min":210,"longest_wake_min":12,
               "lowest_hr":47,"lowest_hr_at":"2026-08-10T03:10:00Z","position_recorded":true,
               "positions":[{"position":"Left side","minutes":250}],
@@ -89,6 +91,9 @@ final class ActivityRestoreTests: XCTestCase {
         XCTAssertEqual(entry.sleepDeepMinutes, 72)
         XCTAssertEqual(entry.sleepAlgorithmVersion, 13,
                        "restored with its version, or the recorder purges it and cannot rebuild it")
+        let parts = SleepScore.parts(fromJSON: entry.sleepPartsJSON)
+        XCTAssertEqual(parts[.duration]?.first?.label, "Against your need", "the working comes back with the night")
+        XCTAssertEqual(entry.sleepQuietDC, 7.9)
         let detail = SleepNightDetail(json: entry.sleepDetailJSON)
         XCTAssertEqual(detail?.wakeBouts, 3)
         XCTAssertEqual(detail?.positions.first?.position, "Left side")

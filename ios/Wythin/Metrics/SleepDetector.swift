@@ -184,7 +184,11 @@ enum SleepThresholds {
     /// the range it was read against and the share it carried — so the detail
     /// screen can show the working instead of describing it. No score changes;
     /// the rescore exists to fill the new field on nights already stored.
-    static let algorithmVersion: Int = 20
+    /// 21: the longest unbroken stretch and the longest wake bout are timed
+    /// in gap-credited seconds like every other minute, not ticks × the
+    /// median interval — which overstated both wherever the sampling was
+    /// denser than the night's median. Continuity changes on such nights.
+    static let algorithmVersion: Int = 21
     /// Shortest run that can stand as its own stage. Sleep changes state on
     /// the scale of minutes; anything briefer is a turn or a dropped estimate,
     /// and leaving it in inflates every count derived from the hypnogram.
