@@ -168,7 +168,19 @@ final class ActiveActivityTests: XCTestCase {
     }
 
     func testAnEntryThatAlreadyHasAnAfterWindowIsLeftAlone() {
-        XCTAssertFalse(finished(60 * 60, during: 44, after: 41).needsWindowRefresh())
+        // "Has an after window" now means it was computed with the window
+        // complete — the settled marker — not merely that a value is present.
+        // The live row fills the after fields early, every tick, so presence
+        // alone would leave a two-minute partial window standing as the result.
+        let e = finished(60 * 60, during: 44, after: 41)
+        e.settledAt = Date()
+        XCTAssertFalse(e.needsWindowRefresh())
+    }
+
+    func testAPartialAfterWindowIsRefreshedOnceComplete() {
+        // Computed early (settledAt nil) and the ten minutes have passed: read
+        // it again, whatever the early read stored.
+        XCTAssertTrue(finished(60 * 60, during: 44, after: 41).needsWindowRefresh())
     }
 
     func testAnEntryMissingItsDuringWindowIsAlwaysRefreshed() {
