@@ -199,6 +199,32 @@ final class ActiveActivityTests: XCTestCase {
         XCTAssertNil(live.endedAt)
         XCTAssertFalse(live.needsWindowRefresh())
     }
+
+    // MARK: - The running toast's heart-rate trace
+
+    func testTraceKeepsOnlyTheWindowAndNormalisesToTheUnitSquare() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let samples: [(Date, Float?)] = [
+            (now.addingTimeInterval(-200), 60),      // outside the window
+            (now.addingTimeInterval(-60), 100),
+            (now.addingTimeInterval(-30), 140),
+            (now.addingTimeInterval(-10), nil),      // a tick with no heart rate
+            (now, 120),
+        ]
+        let pts = HeartRateTrace.normalised(samples: samples, window: 90, now: now)
+        XCTAssertEqual(pts.count, 3)
+        XCTAssertEqual(pts.first!.x, 1 - 60.0 / 90, accuracy: 0.001)
+        XCTAssertEqual(pts.last!.x, 1, accuracy: 0.001)
+        XCTAssertEqual(pts.map(\.y), [0, 1, 0.5].map { CGFloat($0) })
+    }
+
+    func testTraceNeedsTwoPointsAndSurvivesAFlatLine() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertTrue(HeartRateTrace.normalised(samples: [(now, 90)], window: 90, now: now).isEmpty)
+        let flat = HeartRateTrace.normalised(samples: [(now.addingTimeInterval(-10), 90), (now, 90)],
+                                             window: 90, now: now)
+        XCTAssertEqual(flat.map(\.y), [0.5, 0.5], "a flat trace sits mid-height, not at the floor")
+    }
 }
 
 private struct NoopClient: InsightAPIClient {
