@@ -325,21 +325,59 @@ final class SleepDetectorTests: XCTestCase {
         XCTAssertEqual(Calendar.current.component(.hour, from: w?.startedAt ?? .distantPast), 20)
     }
 
-    func testGettingUpForTheDayStillEndsTheNight() {
-        // The guard on the test above, and the reason the evidence has to be
-        // read rather than the clock. Same shape, same gap, same later sleep —
-        // but this hour was spent upright and moving, so the night ended at
-        // 05:08 and the later sleep is a morning nap.
+    func testSubstantialSleepAfterGettingUpIsStillTheNight() {
+        // The recorded night of 10–11 September, in shape: asleep, up and
+        // about for a while, then back to bed for real sleep before the
+        // morning. The rule used to call the hour on your feet a final
+        // awakening and file the later sleep as a morning nap — which this
+        // app has no record for, so it was simply gone: the night read
+        // 3 h 51 m against a morning that plainly held more.
+        //
+        // A substantial return to sleep inside `maxInBedWakeSec` is the tail
+        // of the night, with the time up counted as awake inside it. The
+        // sleep is what is being measured; where the person spent the gap
+        // decides how the gap is scored, not whether the sleep counts.
         let points = night(fromHour: 20, fromMinute: 56, hours: 8.2)
             + onYourFeet(fromHour: 5, fromMinute: 8, hours: 1.03, day: 21)
             + night(fromHour: 6, fromMinute: 10, hours: 2.33, day: 21)
 
         let w = SleepDetector.detect(points)
         XCTAssertNotNil(w)
+        let rose = Calendar.current.date(from: DateComponents(
+            year: 2026, month: 7, day: 21, hour: 8, minute: 30))!
+        XCTAssertEqual(w?.endedAt.timeIntervalSince(rose) ?? .infinity, 0, accuracy: 120,
+                       "two hours of sleep after an hour up is the night's tail, not a nap")
+        XCTAssertEqual(Calendar.current.component(.hour, from: w?.startedAt ?? .distantPast), 20)
+    }
+
+    func testAShortDozeAfterGettingUpDoesNotExtendTheNight() {
+        // The guard on the test above. Fifteen minutes of dozing after an
+        // hour on your feet is not a return to sleep worth dragging the night
+        // out for — and everything between would be scored awake.
+        let points = night(fromHour: 20, fromMinute: 56, hours: 8.2)
+            + onYourFeet(fromHour: 5, fromMinute: 8, hours: 1.03, day: 21)
+            + night(fromHour: 6, fromMinute: 10, hours: 0.25, day: 21)
+
+        let w = SleepDetector.detect(points)
+        XCTAssertNotNil(w)
         let got = Calendar.current.date(from: DateComponents(
             year: 2026, month: 7, day: 21, hour: 5, minute: 8))!
         XCTAssertEqual(w?.endedAt.timeIntervalSince(got) ?? .infinity, 0, accuracy: 120,
-                       "upright and moving for an hour is getting up, and it ends the night")
+                       "a doze under half an hour does not reopen the night")
+    }
+
+    func testAnEveningNapBeforeALongGapDoesNotOpenTheNightEvenIfSubstantial() {
+        // The rejoin runs forward only. Forty minutes on the sofa at 20:00,
+        // then two and a half hours up with the strap on, then bed: onset is
+        // bed. A return to sleep in the morning is the night continuing; a
+        // nap before the night is a different thing that happened earlier.
+        let points = night(fromHour: 20, hours: 0.66)
+            + awakeStretch(fromHour: 20, fromMinute: 40, hours: 2.5)
+            + night(fromHour: 23, fromMinute: 10, hours: 7.5)
+
+        let w = SleepDetector.detect(points)
+        XCTAssertNotNil(w)
+        XCTAssertEqual(Calendar.current.component(.hour, from: w?.startedAt ?? .distantPast), 23)
     }
 
     func testGettingUpBrieflyAndComingBackToBedKeepsTheNight() {

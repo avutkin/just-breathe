@@ -229,6 +229,20 @@ enum SleepThresholds {
     /// proof the night ended, and sealing on it truncates the rest of the
     /// night away permanently. 45 minutes awake is someone up for the day.
     static let settleSec: Double = 45 * 60
+    /// The least sleep a later episode must hold to be pulled back into the
+    /// night after a final awakening.
+    ///
+    /// A final awakening used to be final: whatever sleep came after it was
+    /// filed as a morning nap — a record this app does not keep — so it was
+    /// simply gone. The night of 10–11 September 2026 read 3 h 51 m against a
+    /// morning that held an hour and a quarter more. Sleep after getting up
+    /// is still sleep, and it is the sleep that is being measured; where the
+    /// gap was spent decides how the gap is scored, not whether the sleep
+    /// counts. Half an hour keeps the rule off a doze, which would drag an
+    /// hour or more of "awake" into the night for fifteen minutes of sleep.
+    /// Bounded by `maxInBedWakeSec` on the gap, and forward only — an evening
+    /// nap before bed is a different thing that happened earlier.
+    static let minRejoinSleepSec: Double = 30 * 60
 
     /// How long evidence of being **out of bed** must persist before it ends
     /// the night.
@@ -568,10 +582,26 @@ enum SleepDetector {
 
         // Most sleep, not the longest span: a span would let an episode win on
         // the strength of the wake bouts inside it.
-        let best = episodes.max { a, b in asleepSeconds(a, points) < asleepSeconds(b, points) }
-        guard let best, let lo = best.first?.lowerBound, let hi = best.last?.upperBound else {
-            return nil
+        guard let bestIndex = episodes.indices.max(by: {
+            asleepSeconds(episodes[$0], points) < asleepSeconds(episodes[$1], points)
+        }) else { return nil }
+
+        // Then walk forward: a substantial return to sleep within
+        // `maxInBedWakeSec` of where the night stood is its tail, however the
+        // gap was spent. See `minRejoinSleepSec` for the night this lost.
+        var last = bestIndex
+        while last + 1 < episodes.count {
+            let tail = episodes[last + 1]
+            guard let from = episodes[last].last?.upperBound,
+                  let to = tail.first?.lowerBound else { break }
+            let gap = points[to].timestamp.timeIntervalSince(points[from].timestamp)
+            guard gap < SleepThresholds.maxInBedWakeSec,
+                  asleepSeconds(tail, points) >= SleepThresholds.minRejoinSleepSec else { break }
+            last += 1
         }
+
+        guard let lo = episodes[bestIndex].first?.lowerBound,
+              let hi = episodes[last].last?.upperBound else { return nil }
         return lo...hi
     }
 
